@@ -26,7 +26,6 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: linux/amd64
           build-args: VERSION="1.2.0"
           tags: |
             "lferrarotti74/speedtest-ookla:1.2.0"
