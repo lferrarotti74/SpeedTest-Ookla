@@ -17,6 +17,10 @@ RUN apk add --no-cache --virtual .deps tar curl && \
     mv /tmp/speedtest /usr/local/bin/ && \
     rm -rf /tmp/speedtest.* && \
     speedtest --accept-license --accept-gdpr && \
+    echo "alias vi='vim'" > ~/.rc && \
+    echo "alias l='ls -alF'" >> ~/.rc && \
+    echo "alias ls='ls -alF --color=auto'" >> ~/.rc && \
+    echo "alias speedtest='/usr/local/bin/speedtest --accept-license --accept-gdpr'" >> ~/.rc && \
     apk del .deps
 
 COPY scripts/aliases.sh /etc/profile.d/aliases.sh
