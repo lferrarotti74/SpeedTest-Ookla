@@ -1,7 +1,5 @@
 name: ci
 
-#env:
-#  VERSION: 1.2.0
 on:
   push:
     branches:
@@ -36,7 +34,6 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          # build-args: VERSION=${{ env.VERSION }}
           build-args: VERSION=${{ env.SPEEDTEST_VERSION }}
           platforms: linux/amd64,linux/i386
           tags: |
