@@ -1,7 +1,7 @@
 name: ci
 
 env:
-  VERSION: '1.2.0'
+  VERSION: 1.2.0
 on:
   push:
     branches:
