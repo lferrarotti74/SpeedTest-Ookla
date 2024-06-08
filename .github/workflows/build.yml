@@ -17,8 +17,9 @@ jobs:
         uses: c-py/action-dotenv-to-setenv@v5
         id: source-env
         with:
-          env-file: .env/.env
-      - run: echo ${{ steps.source-env.outputs.version }}
+          env-file: env/.env  
+      - name: Echo Speedtest Version from env file
+        run: echo ${{ steps.source-env.outputs.speedtest_version }}
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
