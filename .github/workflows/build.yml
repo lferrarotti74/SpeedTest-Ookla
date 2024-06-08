@@ -1,7 +1,7 @@
 name: ci
 
 env:
-  VERSION: 1.2.0
+  VERSION: '1.2.0'
 on:
   push:
     branches:
@@ -31,8 +31,8 @@ jobs:
           build-args: VERSION=$VERSION
           platforms: linux/amd64,linux/i386
           tags: |
-            "lferrarotti74/speedtest-ookla:$VERSION"
-            "lferrarotti74/speedtest-ookla:latest"
+            lferrarotti74/speedtest-ookla:$VERSION
+            lferrarotti74/speedtest-ookla:latest
           # For pull requests, export results to the build cache.
           # Otherwise, push to a registry.
           outputs: ${{ github.event_name == 'pull_request' && 'type=cacheonly' || 'type=registry,push=true' }}
