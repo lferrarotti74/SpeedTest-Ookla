@@ -21,7 +21,7 @@ jobs:
       - name: Echo Speedtest Version from env file
         run: | 
           echo ${{ steps.source-env.outputs.speedtest_version }} >> "$GITHUB_ENV"
-          echo $SPEEDTEST_VERSION >> $VERSION
+          echo $SPEEDTEST_VERSION >> "$VERSION"
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -38,7 +38,7 @@ jobs:
         with:
           context: .
           # build-args: VERSION=${{ env.VERSION }}
-          build-args: $VERSION
+          build-args: VERSION=$VERSION
           platforms: linux/amd64,linux/i386
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/speedtest-ookla:${{ env.VERSION }}
