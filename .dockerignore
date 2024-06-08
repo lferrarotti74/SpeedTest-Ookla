@@ -7,3 +7,5 @@ logs/
 #Ingore all markdown and class files
 *.md
 **/*.class
+# Ignore the env directory
+env/
