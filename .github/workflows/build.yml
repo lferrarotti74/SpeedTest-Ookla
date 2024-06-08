@@ -35,8 +35,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          # build-args: VERSION=${{ env.VERSION }}
-          build-args: VERSION=${{ steps.source-env.outputs.speedtest_version }}
+          build-args: VERSION=${{ env.VERSION }}
           platforms: linux/amd64,linux/i386
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/speedtest-ookla:${{ env.VERSION }}
