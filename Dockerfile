@@ -9,6 +9,7 @@ RUN apk add --no-cache --virtual .deps tar curl && \
     case "$ARCH" in \
         x86)    _arch=i386      ;; \
         x86_64) _arch=x86_64    ;; \
+        arm64)  _arch=aarch64    ;; \
         armv7)  _arch=armhf     ;; \
         *)      _arch="$ARCH"   ;; \
     esac && \
