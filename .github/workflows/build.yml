@@ -35,7 +35,7 @@ jobs:
         with:
           context: .
           build-args: VERSION=${{ env.SPEEDTEST_VERSION }}
-          platforms: linux/amd64,linux/i386
+          platforms: linux/amd64,linux/i386,linux/armv7,linux/arm64
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/speedtest-ookla:${{ env.SPEEDTEST_VERSION }}
             ${{ secrets.DOCKERHUB_USERNAME }}/speedtest-ookla:latest
