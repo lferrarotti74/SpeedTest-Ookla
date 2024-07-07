@@ -4,7 +4,7 @@ ARG VERSION
 
 ENV ENV="/etc/profile"
 
-RUN apk add --no-cache --virtual .deps tar curl && \
+RUN apk update && apk upgrade && apk add --no-cache --virtual .deps tar curl && \
     ARCH=$(apk info --print-arch) && \
     case "$ARCH" in \
         x86)    _arch=i386      ;; \
