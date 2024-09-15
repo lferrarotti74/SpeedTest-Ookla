@@ -24,6 +24,7 @@ RUN apk update && apk upgrade && apk add --no-cache --virtual .deps tar curl && 
     echo "alias speedtest='/usr/local/bin/speedtest --accept-license --accept-gdpr'" >> ~/.profile && \
     apk del .deps
 
+# Add copy script and/or files from local to base image
 COPY scripts/aliases.sh /etc/profile.d/aliases.sh
 
 CMD ["/bin/sh", "-l"]
