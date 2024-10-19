@@ -1,5 +1,11 @@
 FROM alpine:latest
 
+LABEL org.opencontainers.image.title="SpeedTest-Ookla"
+LABEL org.opencontainers.image.version="1.2.0"
+LABEL org.opencontainers.image.description="SpeedTest-Ookla - Internet connection measurement for developers"
+LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.source="https://github.com/lferrarotti74/SpeedTest-Ookla"
+
 ARG VERSION
 
 ENV ENV="/etc/profile"
