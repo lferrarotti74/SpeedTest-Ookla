@@ -36,6 +36,8 @@ jobs:
           context: .
           build-args: VERSION=${{ env.SPEEDTEST_VERSION }}
           platforms: linux/amd64,linux/i386,linux/arm/v7,linux/arm64
+          provenance: mode=max
+          sbom: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/speedtest-ookla:${{ env.SPEEDTEST_VERSION }}
             ${{ secrets.DOCKERHUB_USERNAME }}/speedtest-ookla:latest

@@ -74,8 +74,6 @@ jobs:
           context: .
           build-args: VERSION=${{ env.SPEEDTEST_VERSION }}
           push: true
-          provenance: mode=max
-          sbom: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
