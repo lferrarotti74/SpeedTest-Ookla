@@ -1,4 +1,4 @@
-name: cBuild release imagei
+name: Build release image
 
 on:
   workflow_dispatch:
