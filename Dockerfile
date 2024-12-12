@@ -1,5 +1,8 @@
 FROM alpine:latest
 
+# Define an optional build argument to invalidate cache
+ARG CACHEBUST=1
+
 ARG VERSION
 
 LABEL org.opencontainers.image.title="SpeedTest-Ookla"
@@ -28,6 +31,7 @@ RUN apk --no-cache update && apk --no-cache upgrade && apk --update --no-cache -
     echo "alias l='ls -alF'" >> ~/.profile && \
     echo "alias ls='ls -alF --color=auto'" >> ~/.profile && \
     echo "alias speedtest='/usr/local/bin/speedtest --accept-license --accept-gdpr'" >> ~/.profile && \
+    rm -rf /var/cache/apk/* && \
     apk del .deps
 
 # Add copy script and/or files from local to base image
