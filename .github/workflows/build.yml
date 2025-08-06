@@ -59,9 +59,9 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
-        args: >
-          -Dsonar.projectKey=lferrarotti74_SpeedTest-Ookla
-          -Dsonar.organization=lferrarotti74
+          args: >
+            -Dsonar.projectKey=lferrarotti74_SpeedTest-Ookla
+            -Dsonar.organization=lferrarotti74
         
   build:
     runs-on: ubuntu-latest
