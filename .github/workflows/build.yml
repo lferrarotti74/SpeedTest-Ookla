@@ -66,12 +66,17 @@ jobs:
           STORED_DIGEST="${{ vars.ALPINE_DIGEST }}"
           echo "Stored Alpine digest: $STORED_DIGEST"
           
-          # Check if we should build
-          if [ "$NEW_DIGEST" != "$STORED_DIGEST" ] || [ -z "$STORED_DIGEST" ]; then
+          # Handle empty or missing stored digest
+          if [ -z "$STORED_DIGEST" ] || [ "$STORED_DIGEST" = " " ] || [ "$STORED_DIGEST" = "sha256:initial" ]; then
+            echo "🆕 No previous digest stored. This is the first run - build will proceed."
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "digest=$NEW_DIGEST" >> $GITHUB_OUTPUT
+            echo "update_reason=First run - initializing Alpine digest tracking" >> $GITHUB_OUTPUT
+          elif [ "$NEW_DIGEST" != "$STORED_DIGEST" ]; then
             echo "✅ Alpine Linux has been updated! Build will proceed."
             echo "should_build=true" >> $GITHUB_OUTPUT
             echo "digest=$NEW_DIGEST" >> $GITHUB_OUTPUT
-            echo "update_reason=Alpine Linux base image updated (digest: ${NEW_DIGEST:0:12}...)" >> $GITHUB_OUTPUT
+            echo "update_reason=Alpine Linux base image updated (${STORED_DIGEST:0:12}... → ${NEW_DIGEST:0:12}...)" >> $GITHUB_OUTPUT
           else
             echo "ℹ️ No Alpine update detected. Skipping build."
             echo "should_build=false" >> $GITHUB_OUTPUT
@@ -345,10 +350,16 @@ jobs:
 
       # NEW: Update stored Alpine digest after successful build
       - name: Update stored Alpine digest
-        if: github.event_name == 'schedule' && needs.check-base-image.outputs.alpine_digest != ''
+        if: github.event_name == 'schedule' && needs.check-base-image.outputs.alpine_digest != '' && needs.build.result == 'success'
         run: |
-          echo "📝 Updating stored Alpine digest to: ${{ needs.check-base-image.outputs.alpine_digest }}"
+          echo "📝 Updating stored Alpine digest..."
+          echo "Previous: ${{ vars.ALPINE_DIGEST }}"
+          echo "New: ${{ needs.check-base-image.outputs.alpine_digest }}"
+          
           gh variable set ALPINE_DIGEST --body "${{ needs.check-base-image.outputs.alpine_digest }}"
+          
+          echo "✅ Alpine digest updated successfully!"
+          echo "Next scheduled run will use this new digest for comparison."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
