@@ -47,14 +47,14 @@ jobs:
   # NEW: Check if base image (Alpine) has been updated
   check-base-image:
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule'
     outputs:
-      should_build: ${{ steps.check-image.outputs.should_build }}
-      update_reason: ${{ steps.check-image.outputs.update_reason }}
+      should_build: ${{ steps.check-image.outputs.should_build || 'true' }}
+      update_reason: ${{ steps.check-image.outputs.update_reason || 'Non-scheduled trigger' }}
       alpine_digest: ${{ steps.check-image.outputs.digest }}
     steps:
       - name: Check Alpine Linux updates
         id: check-image
+        if: github.event_name == 'schedule'
         run: |
           echo "🔍 Checking Alpine Linux for updates..."
           
@@ -76,6 +76,12 @@ jobs:
             echo "ℹ️ No Alpine update detected. Skipping build."
             echo "should_build=false" >> $GITHUB_OUTPUT
           fi
+      
+      - name: Set default for non-scheduled runs
+        if: github.event_name != 'schedule'
+        run: |
+          echo "should_build=true" >> $GITHUB_OUTPUT
+          echo "update_reason=Non-scheduled trigger" >> $GITHUB_OUTPUT
 
   print-tag:
     runs-on: ubuntu-latest
