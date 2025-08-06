@@ -28,6 +28,8 @@ on:
     paths-ignore:
       - 'README.md'
       - 'LICENSE'
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 env:
   REGISTRY_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/speedtest-ookla
@@ -40,6 +42,22 @@ jobs:
       - name: Print the purpose of run
         run: |
           echo "Purpose of Run: ${{ inputs.tags }}"
+
+  # NEW: SonarQube Analysis Job
+  sonarqube:
+    name: SonarQube Analysis
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+      
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         
   build:
     runs-on: ubuntu-latest
