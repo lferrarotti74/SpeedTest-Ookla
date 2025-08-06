@@ -48,9 +48,9 @@ jobs:
   check-base-image:
     runs-on: ubuntu-latest
     outputs:
-      should_build: ${{ steps.check-image.outputs.should_build || 'true' }}
-      update_reason: ${{ steps.check-image.outputs.update_reason || 'Non-scheduled trigger' }}
-      alpine_digest: ${{ steps.check-image.outputs.digest }}
+      should_build: ${{ steps.check-image.outputs.should_build || steps.default.outputs.should_build }}
+      update_reason: ${{ steps.check-image.outputs.update_reason || steps.default.outputs.update_reason }}
+      alpine_digest: ${{ steps.check-image.outputs.digest || steps.default.outputs.digest }}
     steps:
       - name: Check Alpine Linux updates
         id: check-image
@@ -83,10 +83,12 @@ jobs:
           fi
       
       - name: Set default for non-scheduled runs
+        id: default
         if: github.event_name != 'schedule'
         run: |
           echo "should_build=true" >> $GITHUB_OUTPUT
           echo "update_reason=Non-scheduled trigger" >> $GITHUB_OUTPUT
+          echo "digest=" >> $GITHUB_OUTPUT
 
   print-tag:
     runs-on: ubuntu-latest
