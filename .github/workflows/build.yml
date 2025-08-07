@@ -58,9 +58,40 @@ jobs:
         run: |
           echo "🔍 Checking Alpine Linux for updates..."
           
-          # Get current digest from Docker Hub
-          NEW_DIGEST=$(docker buildx imagetools inspect alpine:latest --format "{{.Manifest.Digest}}")
+          # Get current digest from Docker Hub using a more reliable method
+          echo "Pulling latest Alpine image info..."
+          
+          # Use docker manifest inspect instead of buildx imagetools
+          NEW_DIGEST=$(docker manifest inspect alpine:latest | jq -r '.config.digest // .digest // empty')
+          
+          # Fallback method if the above doesn't work
+          if [ -z "$NEW_DIGEST" ] || [ "$NEW_DIGEST" = "null" ]; then
+            echo "Trying alternative digest retrieval method..."
+            docker pull alpine:latest > /dev/null 2>&1
+            NEW_DIGEST=$(docker image inspect alpine:latest --format '{{index .RepoDigests 0}}' | cut -d'@' -f2)
+          fi
+          
+          # Final fallback using docker buildx but with better error handling
+          if [ -z "$NEW_DIGEST" ] || [ "$NEW_DIGEST" = "null" ]; then
+            echo "Using buildx imagetools as fallback..."
+            set +e  # Don't exit on error
+            INSPECT_OUTPUT=$(docker buildx imagetools inspect alpine:latest --format '{{json .}}' 2>/dev/null)
+            if [ $? -eq 0 ]; then
+              NEW_DIGEST=$(echo "$INSPECT_OUTPUT" | jq -r '.manifest.digest // .digest // empty')
+            fi
+            set -e  # Re-enable exit on error
+          fi
+          
           echo "Current Alpine digest: $NEW_DIGEST"
+          
+          # Validate digest format
+          if [[ ! "$NEW_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+            echo "⚠️ Warning: Retrieved digest format seems invalid: $NEW_DIGEST"
+            echo "Skipping build due to digest retrieval error."
+            echo "should_build=false" >> $GITHUB_OUTPUT
+            echo "update_reason=Failed to retrieve valid Alpine digest" >> $GITHUB_OUTPUT
+            exit 0
+          fi
           
           # Get stored digest from GitHub Variables
           STORED_DIGEST="${{ vars.ALPINE_DIGEST }}"
@@ -80,6 +111,7 @@ jobs:
           else
             echo "ℹ️ No Alpine update detected. Skipping build."
             echo "should_build=false" >> $GITHUB_OUTPUT
+            echo "update_reason=No Alpine updates detected" >> $GITHUB_OUTPUT
           fi
       
       - name: Set default for non-scheduled runs
@@ -352,7 +384,7 @@ jobs:
 
       # NEW: Update stored Alpine digest after successful build
       - name: Update stored Alpine digest
-        if: github.event_name == 'schedule' && needs.check-base-image.outputs.alpine_digest != '' && needs.build.result == 'success'
+        if: github.event_name == 'schedule' && needs.check-base-image.outputs.alpine_digest != '' && needs.merge.result == 'success'
         run: |
           echo "📝 Updating stored Alpine digest..."
           echo "Previous: ${{ vars.ALPINE_DIGEST }}"
