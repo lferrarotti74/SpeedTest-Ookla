@@ -54,7 +54,7 @@ jobs:
     steps:
       - name: Check Alpine Linux updates
         id: check-image
-        if: github.event_name == 'schedule'
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.force_build == 'false')
         run: |
           echo "🔍 Checking Alpine Linux for updates..."
           
@@ -116,7 +116,7 @@ jobs:
       
       - name: Set default for non-scheduled runs
         id: default
-        if: github.event_name != 'schedule'
+        if: github.event_name != 'schedule' && (github.event_name != 'workflow_dispatch' || inputs.force_build == 'true')
         run: |
           echo "should_build=true" >> $GITHUB_OUTPUT
           echo "update_reason=Non-scheduled trigger" >> $GITHUB_OUTPUT
@@ -432,3 +432,4 @@ jobs:
             echo "🎯 **Multi-arch build successful** for platforms:" >> $GITHUB_STEP_SUMMARY
             echo "- linux/amd64, linux/i386, linux/arm/v7, linux/arm64" >> $GITHUB_STEP_SUMMARY
           fi
+          
