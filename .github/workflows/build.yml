@@ -382,9 +382,13 @@ jobs:
           docker buildx imagetools inspect ${{ env.GHCR_IMAGE }}:latest
           docker buildx imagetools inspect ${{ env.GHCR_IMAGE }}:${{ env.SPEEDTEST_VERSION }}
 
-      # NEW: Update stored Alpine digest after successful build
+  # NEW: Update stored Alpine digest after successful build
+  update-digest:
+    runs-on: ubuntu-latest
+    needs: [check-base-image, merge]
+    if: (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.force_build == 'false')) && needs.check-base-image.outputs.alpine_digest != '' && needs.merge.result == 'success'
+    steps:
       - name: Update stored Alpine digest
-        if: github.event_name == 'schedule' && needs.check-base-image.outputs.alpine_digest != '' && needs.merge.result == 'success'
         run: |
           echo "📝 Updating stored Alpine digest..."
           echo "Previous: ${{ vars.ALPINE_DIGEST }}"
@@ -400,7 +404,7 @@ jobs:
   # NEW: Build Summary
   build-summary:
     runs-on: ubuntu-latest
-    needs: [check-base-image, build, merge]
+    needs: [check-base-image, build, merge, update-digest]
     if: always()
     steps:
       - name: Generate Build Summary
@@ -432,4 +436,3 @@ jobs:
             echo "🎯 **Multi-arch build successful** for platforms:" >> $GITHUB_STEP_SUMMARY
             echo "- linux/amd64, linux/i386, linux/arm/v7, linux/arm64" >> $GITHUB_STEP_SUMMARY
           fi
-          
