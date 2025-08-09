@@ -1,4 +1,4 @@
-FROM alpine:latest
+FROM alpine:3
 
 # Define an optional build argument to invalidate cache
 ARG CACHEBUST=1
