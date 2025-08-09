@@ -32,9 +32,12 @@ RUN apk --no-cache update && apk --no-cache upgrade && apk --update --no-cache -
     echo "alias ls='ls -alF --color=auto'" >> ~/.profile && \
     echo "alias speedtest='/usr/local/bin/speedtest --accept-license --accept-gdpr'" >> ~/.profile && \
     rm -rf /var/cache/apk/* && \
+    addgroup -S speedtest && adduser -S speedtest -G speedtest -g "speedtest" \
     apk del .deps
 
 # Add copy script and/or files from local to base image
 COPY scripts/aliases.sh /etc/profile.d/aliases.sh
+
+USER speedtest
 
 CMD ["/bin/sh", "-l"]
