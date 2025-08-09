@@ -36,6 +36,8 @@ COPY scripts/aliases.sh /etc/profile.d/aliases.sh
 RUN chmod +x /etc/profile.d/aliases.sh
 
 USER speedtest
-RUN speedtest --accept-license --accept-gdpr
+RUN mkdir -p /home/speedtest/.config/ookla/
+COPY scripts/speedtest-cli.json /home/speedtest/.config/ookla/speedtest-cli.json
+#RUN speedtest --accept-license --accept-gdpr --help > /dev/null 2>&1 || true
 
 CMD ["/bin/sh", "-l"]
