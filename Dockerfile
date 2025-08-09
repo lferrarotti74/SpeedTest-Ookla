@@ -23,21 +23,19 @@ RUN apk --no-cache update && apk --no-cache upgrade && apk --update --no-cache -
         *)      _arch="$ARCH"   ;; \
     esac && \
     cd /tmp && \
-    curl --proto "=https" --tlsv1.2 -sSf -L https://install.speedtest.net/app/cli/ookla-speedtest-${VERSION}-linux-${_arch}.tgz | tar xz && \
+    curl --proto https --tlsv1.2 -sSf -L https://install.speedtest.net/app/cli/ookla-speedtest-${VERSION}-linux-${_arch}.tgz | tar xz && \
     mv /tmp/speedtest /usr/local/bin/ && \
     rm -rf /tmp/speedtest.* && \
-    speedtest --accept-license --accept-gdpr && \
-    echo "alias vi='vim'" > ~/.profile && \
-    echo "alias l='ls -alF'" >> ~/.profile && \
-    echo "alias ls='ls -alF --color=auto'" >> ~/.profile && \
-    echo "alias speedtest='/usr/local/bin/speedtest --accept-license --accept-gdpr'" >> ~/.profile && \
     rm -rf /var/cache/apk/* && \
-    addgroup -S speedtest && adduser -S speedtest -G speedtest -g "speedtest" \
-    apk del .deps
+    addgroup -S speedtest \
+    && adduser -S speedtest -G speedtest -g "speedtest" -h /home/speedtest \
+    && apk del .deps
 
-# Add copy script and/or files from local to base image
+# Copy aliases script (make sure it's executable)
 COPY scripts/aliases.sh /etc/profile.d/aliases.sh
+RUN chmod +x /etc/profile.d/aliases.sh
 
 USER speedtest
+RUN speedtest --accept-license --accept-gdpr
 
 CMD ["/bin/sh", "-l"]
