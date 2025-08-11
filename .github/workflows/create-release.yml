@@ -1,5 +1,9 @@
 name: Create Release
 
+permissions:
+  contents: write    # Allow pushing tags and modifying repo contents (required)
+  actions: read      # Allow reading actions metadata (optional, but recommended)
+
 on:
   workflow_dispatch:
     inputs:
