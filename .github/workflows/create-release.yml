@@ -1,0 +1,76 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Overwrite existing tag if it exists?"
+        required: true
+        default: "no"
+        type: choice
+        options:
+          - "no"
+          - "yes"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version from env file
+        id: version
+        run: |
+          SPEEDTEST_VERSION=$(grep '^SPEEDTEST_VERSION=' env/.env | cut -d '=' -f2)
+          echo "version=$SPEEDTEST_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Check if tag exists and handle force option
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          FORCE="${{ github.event.inputs.force }}"
+
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists."
+            if [ "$FORCE" = "no" ]; then
+              echo "Force option is disabled. Exiting."
+              exit 1
+            else
+              echo "Force option is enabled. Deleting old tag..."
+              git tag -d "$TAG" || true
+              git push origin :refs/tags/"$TAG" || true
+            fi
+          fi
+
+          echo "Creating tag $TAG..."
+          git tag "$TAG"
+          git push origin "$TAG"
+
+      - name: Create archives (keep .github/)
+        run: |
+          mkdir artifacts
+          zip -r artifacts/project-${{ steps.version.outputs.version }}.zip . \
+            -x "*.git*"
+          tar --exclude-vcs \
+              -czf artifacts/project-${{ steps.version.outputs.version }}.tar.gz .
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Release v${{ steps.version.outputs.version }}
+          body: |
+            Automated release for version v${{ steps.version.outputs.version }}
+          files: |
+            artifacts/project-${{ steps.version.outputs.version }}.zip
+            artifacts/project-${{ steps.version.outputs.version }}.tar.gz
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
