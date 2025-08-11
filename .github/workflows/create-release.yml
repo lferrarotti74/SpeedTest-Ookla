@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to create (e.g. v6.12-r0)'
+        description: 'Tag to create (e.g. v6.12-r0, v1.2.0, or v1.2.3-beta.1)'
         required: true
         default: ''
       dry_run:
@@ -44,9 +44,19 @@ jobs:
           FORCE="${{ github.event.inputs.force }}"
           DRY_RUN="${{ github.event.inputs.dry_run }}"
 
-          # Validate tag format
-          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+(-r[0-9]+)?$ ]]; then
-            echo "❌ Invalid tag format. Use vX.Y or vX.Y-rZ."
+          # Enhanced tag validation - supports multiple formats:
+          # - Semantic versioning: v1.2.3, v10.20.30
+          # - Two-part versioning: v6.12, v1.0
+          # - Custom release notation: v6.12-r0, v1.2.3-r1
+          # - Pre-release tags: v1.2.3-alpha.1, v1.0.0-beta.2
+          if [[ ! "$TAG" =~ ^v[0-9]+(\.[0-9]+){1,2}(-[a-zA-Z0-9]+(\.[0-9]+)?)?$ ]]; then
+            echo "❌ Invalid tag format."
+            echo "Valid formats:"
+            echo "  - Two-part: v1.2, v6.12"
+            echo "  - Three-part (semver): v1.2.3, v10.20.30"
+            echo "  - With release suffix: v1.2-r0, v1.2.3-r1"
+            echo "  - With pre-release: v1.2.3-alpha.1, v1.0.0-beta.2"
+            echo "Received: $TAG"
             exit 1
           fi
 
@@ -60,6 +70,8 @@ jobs:
           echo "FORCE=$FORCE" >> $GITHUB_OUTPUT
           echo "DRY_RUN=$DRY_RUN" >> $GITHUB_OUTPUT
           echo "PREFIX=$PREFIX" >> $GITHUB_OUTPUT
+
+          echo "✅ Tag format validated: $TAG"
 
       - name: Check for uncommitted changes
         run: |
