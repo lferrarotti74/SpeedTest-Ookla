@@ -1,40 +1,45 @@
 name: Create Release
 
-permissions:
-  contents: write    # Allow pushing tags and modifying repo contents (required)
-  actions: read      # Allow reading actions metadata (optional, but recommended)
-
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version number (e.g. v6.12-r0)'
+        description: 'Version tag to create (e.g. v6.12-r0)'
         required: true
+        default: ''
       force:
-        description: 'Force overwrite if tag exists'
+        description: 'Force overwrite existing tag'
         required: false
         default: 'false'
       dry_run:
-        description: 'Dry-run mode (no archive, no push)'
+        description: 'Dry-run mode (true = simulate, false = create)'
         required: false
         default: 'false'
+
+permissions:
+  contents: write  # Needed to push tags and create releases
+  actions: read
 
 jobs:
   create-release:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: recursive
+          persist-credentials: true
 
-      - name: Validate inputs
+      - name: Validate version format
         run: |
-          if [[ ! "${{ github.event.inputs.version }}" =~ ^v[0-9]+\.[0-9]+(-r[0-9]+)?$ ]]; then
+          TAG="${{ github.event.inputs.version }}"
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+(-r[0-9]+)?$ ]]; then
             echo "❌ Invalid version format. Use vX.Y or vX.Y-rZ."
             exit 1
           fi
+        shell: bash
 
       - name: Check for uncommitted changes
         run: |
@@ -42,14 +47,7 @@ jobs:
             echo "❌ There are uncommitted changes. Commit or stash them first."
             exit 1
           fi
-
-      - name: Check for unpushed commits
-        run: |
-          git fetch origin
-          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/$(git rev-parse --abbrev-ref HEAD))" ]; then
-            echo "❌ Local branch is out of sync with remote. Push or pull first."
-            exit 1
-          fi
+        shell: bash
 
       - name: Check for uncommitted submodule changes
         run: |
@@ -57,52 +55,80 @@ jobs:
             echo "❌ There are uncommitted changes in submodules."
             exit 1
           fi
+        shell: bash
 
-      - name: Check if tag already exists
+      - name: Ensure local branch matches remote
         run: |
-          TAG="${{ github.event.inputs.version }}"
-          FORCE="${{ github.event.inputs.force }}"
+          git fetch origin
+          BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+          LOCAL_HEAD="$(git rev-parse HEAD)"
+          REMOTE_HEAD="$(git rev-parse origin/$BRANCH)"
+          if [ "$LOCAL_HEAD" != "$REMOTE_HEAD" ]; then
+            echo "❌ Local branch is out of sync with remote. Push or pull first."
+            exit 1
+          fi
+        shell: bash
+
+      - name: Prepare tag variables
+        id: vars
+        run: |
+          echo "TAG=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          echo "FORCE=${{ github.event.inputs.force }}" >> $GITHUB_OUTPUT
+          PREFIX="project-${{ github.event.inputs.version }}/"
+          echo "PREFIX=$PREFIX" >> $GITHUB_OUTPUT
+
+      - name: Check if tag exists
+        run: |
           git fetch --tags
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            if [ "$FORCE" != "true" ]; then
-              echo "❌ Tag '$TAG' already exists. Use force=true to overwrite."
+          if git rev-parse "${{ steps.vars.outputs.TAG }}" >/dev/null 2>&1; then
+            if [ "${{ steps.vars.outputs.FORCE }}" != "true" ]; then
+              echo "❌ Tag '${{ steps.vars.outputs.TAG }}' already exists. Use force=true to overwrite."
               exit 1
             else
-              echo "⚠ Force mode: deleting existing tag '$TAG'."
-              git tag -d "$TAG" || true
-              git push origin ":refs/tags/$TAG" || true
+              echo "⚠ Force mode: deleting existing tag '${{ steps.vars.outputs.TAG }}'."
+              git tag -d "${{ steps.vars.outputs.TAG }}" || true
+              git push origin ":refs/tags/${{ steps.vars.outputs.TAG }}" || true
             fi
           fi
+        shell: bash
 
-      - name: Dry-run info
-        if: github.event.inputs.dry_run == 'true'
+      - name: Dry-run message
+        if: ${{ github.event.inputs.dry_run == 'true' }}
         run: |
-          echo "🛠 Dry-run mode enabled — will NOT create archive or push tag."
-          echo "Would create release for tag: ${{ github.event.inputs.version }}"
+          echo "🛠 Dry-run mode enabled — will NOT create archive, push tag or create release."
+          echo "Would create release for tag: ${{ steps.vars.outputs.TAG }}"
           exit 0
+        shell: bash
 
-      - name: Create tag
+      - name: Create git tag
+        if: ${{ github.event.inputs.dry_run != 'true' }}
         run: |
-          TAG="${{ github.event.inputs.version }}"
-          git tag "$TAG"
-          git push origin "$TAG"
+          git tag "${{ steps.vars.outputs.TAG }}"
+        shell: bash
 
-      - name: Create release archive
+      - name: Push git tag
+        if: ${{ github.event.inputs.dry_run != 'true' }}
         run: |
-          TAG="${{ github.event.inputs.version }}"
-          PREFIX="project-${TAG}/"
+          git push origin "${{ steps.vars.outputs.TAG }}"
+        shell: bash
+
+      - name: Create release archives
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
           mkdir -p release
-          git archive --format=tar.gz --prefix="$PREFIX" HEAD \
-            -- . ':!*.git*' '.github' > "release/${TAG}.tar.gz"
-          git archive --format=zip --prefix="$PREFIX" HEAD \
-            -- . ':!*.git*' '.github' > "release/${TAG}.zip"
+          git archive --format=tar.gz --prefix="${{ steps.vars.outputs.PREFIX }}" HEAD \
+            -- . ':!*.git*' '.github' > "release/${{ steps.vars.outputs.TAG }}.tar.gz"
+          git archive --format=zip --prefix="${{ steps.vars.outputs.PREFIX }}" HEAD \
+            -- . ':!*.git*' '.github' > "release/${{ steps.vars.outputs.TAG }}.zip"
+        shell: bash
 
-      - name: Upload release archive to GitHub Releases
+      - name: Create GitHub release
+        if: ${{ github.event.inputs.dry_run != 'true' }}
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.event.inputs.version }}
+          tag_name: ${{ steps.vars.outputs.TAG }}
           files: |
-            release/${{ github.event.inputs.version }}.tar.gz
-            release/${{ github.event.inputs.version }}.zip
+            release/${{ steps.vars.outputs.TAG }}.tar.gz
+            release/${{ steps.vars.outputs.TAG }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
