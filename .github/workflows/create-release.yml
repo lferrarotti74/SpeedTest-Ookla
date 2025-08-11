@@ -3,102 +3,102 @@ name: Create Release
 on:
   workflow_dispatch:
     inputs:
-      force:
-        description: "Overwrite existing tag and release if it exists?"
+      version:
+        description: 'Version number (e.g. v6.12-r0)'
         required: true
-        default: "no"
-        type: choice
-        options:
-          - "no"
-          - "yes"
+      force:
+        description: 'Force overwrite if tag exists'
+        required: false
+        default: 'false'
+      dry_run:
+        description: 'Dry-run mode (no archive, no push)'
+        required: false
+        default: 'false'
 
 jobs:
-  release:
+  create-release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          submodules: recursive
 
-      - name: Read version from env file
-        id: version
+      - name: Validate inputs
         run: |
-          SPEEDTEST_VERSION=$(grep '^SPEEDTEST_VERSION=' env/.env | cut -d '=' -f2)
-          echo "version=$SPEEDTEST_VERSION" >> $GITHUB_OUTPUT
+          if [[ ! "${{ github.event.inputs.version }}" =~ ^v[0-9]+\.[0-9]+(-r[0-9]+)?$ ]]; then
+            echo "❌ Invalid version format. Use vX.Y or vX.Y-rZ."
+            exit 1
+          fi
 
-      - name: Configure git
+      - name: Check for uncommitted changes
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet || ! git diff --cached --quiet; then
+            echo "❌ There are uncommitted changes. Commit or stash them first."
+            exit 1
+          fi
 
-      - name: Check if tag exists and handle force option
-        id: check_tag
+      - name: Check for unpushed commits
         run: |
-          TAG="v${{ steps.version.outputs.version }}"
+          git fetch origin
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/$(git rev-parse --abbrev-ref HEAD))" ]; then
+            echo "❌ Local branch is out of sync with remote. Push or pull first."
+            exit 1
+          fi
+
+      - name: Check for uncommitted submodule changes
+        run: |
+          if [ -n "$(git submodule foreach --quiet 'git diff --quiet || echo $path')" ]; then
+            echo "❌ There are uncommitted changes in submodules."
+            exit 1
+          fi
+
+      - name: Check if tag already exists
+        run: |
+          TAG="${{ github.event.inputs.version }}"
           FORCE="${{ github.event.inputs.force }}"
-
+          git fetch --tags
           if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists."
-            if [ "$FORCE" = "no" ]; then
-              echo "Force option is disabled. Exiting."
+            if [ "$FORCE" != "true" ]; then
+              echo "❌ Tag '$TAG' already exists. Use force=true to overwrite."
               exit 1
             else
-              echo "Force option is enabled. Deleting old tag locally and remotely..."
+              echo "⚠ Force mode: deleting existing tag '$TAG'."
               git tag -d "$TAG" || true
-              git push origin :refs/tags/"$TAG" || true
-              echo "delete_release=true" >> $GITHUB_OUTPUT
+              git push origin ":refs/tags/$TAG" || true
             fi
-          else
-            echo "delete_release=false" >> $GITHUB_OUTPUT
           fi
 
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-
-      - name: Delete existing GitHub Release (if any)
-        if: steps.check_tag.outputs.delete_release == 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.check_tag.outputs.tag }}
+      - name: Dry-run info
+        if: github.event.inputs.dry_run == 'true'
         run: |
-          echo "Looking for existing release with tag $TAG..."
+          echo "🛠 Dry-run mode enabled — will NOT create archive or push tag."
+          echo "Would create release for tag: ${{ github.event.inputs.version }}"
+          exit 0
 
-          RELEASE_ID=$(curl -sSL \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG" | jq -r '.id // empty')
-
-          if [ -n "$RELEASE_ID" ]; then
-            echo "Found release ID $RELEASE_ID for tag $TAG. Deleting..."
-            curl -sSL -X DELETE \
-              -H "Authorization: Bearer $GITHUB_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID"
-            echo "Deleted release $RELEASE_ID"
-          else
-            echo "No release found for tag $TAG, skipping deletion."
-          fi
-
-      - name: Create and push new tag
+      - name: Create tag
         run: |
-          git tag ${{ steps.check_tag.outputs.tag }}
-          git push origin ${{ steps.check_tag.outputs.tag }}
+          TAG="${{ github.event.inputs.version }}"
+          git tag "$TAG"
+          git push origin "$TAG"
 
-      - name: Create archives (keep .github/)
+      - name: Create release archive
         run: |
-          mkdir artifacts
-          zip -r artifacts/project-${{ steps.version.outputs.version }}.zip . -x "*.git*"
-          tar --exclude-vcs -czf artifacts/project-${{ steps.version.outputs.version }}.tar.gz .
+          TAG="${{ github.event.inputs.version }}"
+          PREFIX="project-${TAG}/"
+          mkdir -p release
+          git archive --format=tar.gz --prefix="$PREFIX" HEAD \
+            -- . ':!*.git*' '.github' > "release/${TAG}.tar.gz"
+          git archive --format=zip --prefix="$PREFIX" HEAD \
+            -- . ':!*.git*' '.github' > "release/${TAG}.zip"
 
-      - name: Create GitHub Release with assets
-        uses: softprops/action-gh-release@v2
+      - name: Upload release archive to GitHub Releases
+        uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ steps.check_tag.outputs.tag }}
-          name: Release ${{ steps.check_tag.outputs.tag }}
-          body: Automated release for version ${{ steps.check_tag.outputs.version }}
+          tag_name: ${{ github.event.inputs.version }}
           files: |
-            artifacts/project-${{ steps.version.outputs.version }}.zip
-            artifacts/project-${{ steps.version.outputs.version }}.tar.gz
-          fail_on_unmatched_files: true
+            release/${{ github.event.inputs.version }}.tar.gz
+            release/${{ github.event.inputs.version }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
