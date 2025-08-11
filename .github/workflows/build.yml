@@ -409,54 +409,47 @@ jobs:
   # NEW: Update stored Alpine digest after successful build
   update-digests:
     runs-on: ubuntu-latest
-    needs: [check-base-image, merge]
+    needs: [check-base-image, check-ubuntu-base-image, merge]
     if: >
       (github.event_name == 'schedule' ||
       (github.event_name == 'workflow_dispatch' && inputs.force_build == 'false')) &&
-      needs.check-base-image.outputs.alpine_digest != '' &&
-      needs.check-base-image.outputs.ubuntu_digest != '' &&
       needs.merge.result == 'success'
     permissions:
       contents: write
       actions: write
     steps:
-      - name: Update stored base image digests via API
+      - name: Update stored digest variables via API
         run: |
           update_digest() {
             local VAR_NAME="$1"
-            local CURRENT="${{ vars.${VAR_NAME} }}"
-            local NEW_VALUE="$2"
+            local CURRENT="$2"
+            local NEW_VALUE="$3"
   
-            echo "📝 Checking $VAR_NAME..."
+            echo "📝 Checking if $VAR_NAME needs update..."
             echo "Current: $CURRENT"
             echo "New:     $NEW_VALUE"
   
-            if [ "$CURRENT" = "$NEW_VALUE" ]; then
-              echo "ℹ️ No change for $VAR_NAME — skipping."
+            if [ "$CURRENT" = "$NEW_VALUE" ] || [ -z "$NEW_VALUE" ]; then
+              echo "ℹ️ No change in $VAR_NAME — skipping update."
               return
             fi
   
-            echo "✏️ Updating $VAR_NAME via API..."
+            echo "✏️ Updating stored $VAR_NAME via API..."
             gh api \
               --method PATCH \
               -H "Accept: application/vnd.github+json" \
               -H "X-GitHub-Api-Version: 2022-11-28" \
-              "/repos/${GITHUB_REPOSITORY}/actions/variables/${VAR_NAME}" \
-              -f "name=${VAR_NAME}" \
+              "/repos/${GITHUB_REPOSITORY}/actions/variables/$VAR_NAME" \
+              -f "name=$VAR_NAME" \
               -f "value=$NEW_VALUE"
   
             echo "✅ $VAR_NAME updated successfully!"
           }
   
-          # Update Alpine digest
-          update_digest "ALPINE_DIGEST" "${{ needs.check-base-image.outputs.alpine_digest }}"
-  
-          # Update Ubuntu digest
-          update_digest "UBUNTU_DIGEST" "${{ needs.check-base-image.outputs.ubuntu_digest }}"
+          update_digest "ALPINE_DIGEST" "${{ vars.ALPINE_DIGEST }}" "${{ needs.check-base-image.outputs.alpine_digest }}"
+          update_digest "UBUNTU_DIGEST" "${{ vars.UBUNTU_DIGEST }}" "${{ needs.check-ubuntu-base-image.outputs.ubuntu_digest }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-
 
   # NEW: Build Summary
   build-summary:
