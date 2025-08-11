@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: "Overwrite existing tag if it exists?"
+        description: "Overwrite existing tag and release if it exists?"
         required: true
         default: "no"
         type: choice
@@ -33,6 +33,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Check if tag exists and handle force option
+        id: check_tag
         run: |
           TAG="v${{ steps.version.outputs.version }}"
           FORCE="${{ github.event.inputs.force }}"
@@ -43,31 +44,58 @@ jobs:
               echo "Force option is disabled. Exiting."
               exit 1
             else
-              echo "Force option is enabled. Deleting old tag..."
+              echo "Force option is enabled. Deleting old tag locally and remotely..."
               git tag -d "$TAG" || true
               git push origin :refs/tags/"$TAG" || true
+              echo "delete_release=true" >> $GITHUB_OUTPUT
             fi
+          else
+            echo "delete_release=false" >> $GITHUB_OUTPUT
           fi
 
-          echo "Creating tag $TAG..."
-          git tag "$TAG"
-          git push origin "$TAG"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Delete existing GitHub Release (if any)
+        if: steps.check_tag.outputs.delete_release == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.check_tag.outputs.tag }}
+        run: |
+          echo "Looking for existing release with tag $TAG..."
+
+          RELEASE_ID=$(curl -sSL \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG" | jq -r '.id // empty')
+
+          if [ -n "$RELEASE_ID" ]; then
+            echo "Found release ID $RELEASE_ID for tag $TAG. Deleting..."
+            curl -sSL -X DELETE \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID"
+            echo "Deleted release $RELEASE_ID"
+          else
+            echo "No release found for tag $TAG, skipping deletion."
+          fi
+
+      - name: Create and push new tag
+        run: |
+          git tag ${{ steps.check_tag.outputs.tag }}
+          git push origin ${{ steps.check_tag.outputs.tag }}
 
       - name: Create archives (keep .github/)
         run: |
           mkdir artifacts
-          zip -r artifacts/project-${{ steps.version.outputs.version }}.zip . \
-            -x "*.git*"
-          tar --exclude-vcs \
-              -czf artifacts/project-${{ steps.version.outputs.version }}.tar.gz .
+          zip -r artifacts/project-${{ steps.version.outputs.version }}.zip . -x "*.git*"
+          tar --exclude-vcs -czf artifacts/project-${{ steps.version.outputs.version }}.tar.gz .
 
-      - name: Create or Update GitHub Release
+      - name: Create GitHub Release with assets
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: Release v${{ steps.version.outputs.version }}
-          body: |
-            Automated release for version v${{ steps.version.outputs.version }}
+          tag_name: ${{ steps.check_tag.outputs.tag }}
+          name: Release ${{ steps.check_tag.outputs.tag }}
+          body: Automated release for version ${{ steps.check_tag.outputs.version }}
           files: |
             artifacts/project-${{ steps.version.outputs.version }}.zip
             artifacts/project-${{ steps.version.outputs.version }}.tar.gz
