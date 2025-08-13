@@ -1,5 +1,10 @@
 name: Create Release
 
+# Add permissions block
+permissions:
+  contents: read
+  packages: write
+
 on:
   workflow_dispatch:
     inputs:
@@ -17,10 +22,6 @@ on:
         required: false
         type: boolean
         default: false
-
-permissions:
-  contents: write
-  actions: read
 
 jobs:
   create-release:
@@ -137,7 +138,7 @@ jobs:
 
       - name: Create GitHub Release and upload assets
         if: ${{ steps.vars.outputs.DRY_RUN != 'true' }}
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.vars.outputs.TAG }}
           files: |
