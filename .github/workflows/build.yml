@@ -4,6 +4,7 @@ name: Build release image
 permissions:
   contents: read
   packages: write
+  actions: write  # Required for updating repository variables
 
 on:
   workflow_dispatch:
