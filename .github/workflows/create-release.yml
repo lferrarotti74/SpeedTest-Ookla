@@ -1,5 +1,10 @@
 name: Create Release
 
+# Add permissions block
+permissions:
+  contents: read
+  packages: write
+
 on:
   workflow_dispatch:
     inputs:
@@ -17,10 +22,6 @@ on:
         required: false
         type: boolean
         default: false
-
-permissions:
-  contents: write
-  actions: read
 
 jobs:
   create-release:
