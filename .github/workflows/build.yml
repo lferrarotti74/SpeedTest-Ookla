@@ -27,6 +27,11 @@ on:
         required: false
         default: false
         type: boolean
+      update_digest:
+        description: 'Update base image digests after manual build'
+        required: false
+        default: false
+        type: boolean
   push:
     branches:
       - "main"
@@ -412,11 +417,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: [check-base-image, merge]
     permissions:
-      contents: write  # Required for updating variables
-      actions: write
+      contents: write  # Changed from 'read' to 'write'
+      packages: write  # Keep existing
+      actions: write   # Add this for variable updates
     if: >
       (github.event_name == 'schedule' || 
-       (github.event_name == 'workflow_dispatch' && inputs.force_build == 'false')) &&
+       (github.event_name == 'workflow_dispatch' && inputs.update_digest == 'true')) &&
       needs.merge.result == 'success'
     steps:
       - name: Update stored base image digests
