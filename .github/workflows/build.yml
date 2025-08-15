@@ -59,7 +59,7 @@ jobs:
     steps:
       - name: Check Alpine Linux updates
         id: check-image
-        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.force_build == 'false')
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (inputs.force_build == 'false' || inputs.update_digest == 'true'))
         run: |
           echo "🔍 Checking Alpine Linux for updates..."
           
