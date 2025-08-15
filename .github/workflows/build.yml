@@ -2,8 +2,9 @@ name: Build release image
 
 # Add permissions block
 permissions:
-  contents: read
+  contents: write  # Required for updating variables
   packages: write
+  actions: write   # Required for updating repository variables
 
 on:
   workflow_dispatch:
