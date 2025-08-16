@@ -456,7 +456,7 @@ jobs:
           update_digest "ALPINE_DIGEST" "${{ vars.ALPINE_DIGEST }}" "${{ needs.check-base-image.outputs.alpine_digest }}"
           update_digest "UBUNTU_DIGEST" "${{ vars.UBUNTU_DIGEST }}" "${{ needs.check-base-image.outputs.ubuntu_digest }}"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.REPO_TOKEN }}
 
   # NEW: Build Summary
   build-summary:
