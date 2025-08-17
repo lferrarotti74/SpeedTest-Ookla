@@ -2,7 +2,7 @@ name: Create Release
 
 # Add permissions block
 permissions:
-  contents: read
+  contents: write  # Changed from 'read' to 'write'
   packages: write
 
 on:
