@@ -527,7 +527,10 @@ jobs:
       # OSV-Scanner for app dependencies
       ######################
       - name: Install Syft (SBOM generator)
-        run: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh
+          # Add syft to PATH for subsequent steps
+          echo "$PWD/bin" >> $GITHUB_PATH
 
       - name: Generate SBOM
         run: syft ${{ env.REGISTRY_IMAGE }}:latest -o json > sbom.json
