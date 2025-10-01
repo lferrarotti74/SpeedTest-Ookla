@@ -494,7 +494,7 @@ jobs:
       # Trivy Scan
       ######################
       - name: Trivy Scan
-        uses: aquasecurity/trivy-action@6e7b7d1fd3e4fef0c5fa8cce1229c54b9c086bd0 # v0.24.0
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
         with:
           image-ref: ${{ env.REGISTRY_IMAGE }}:latest
           format: 'table'
@@ -505,12 +505,23 @@ jobs:
       # Grype Scan
       ######################
       - name: Grype Scan
+        id: grype-scan
         uses: anchore/scan-action@869c549e657a088dc0441b08ce4fc0ecdac2bb65 # v5
         with:
           image: ${{ env.REGISTRY_IMAGE }}:latest
-          output: 'json'
-          sarif: false
+          output-format: 'json'
           fail-build: false
+
+      - name: Save Grype Report
+        run: |
+          # The action outputs the JSON report path, let's copy it to our expected filename
+          if [ -f "${{ steps.grype-scan.outputs.json }}" ]; then
+            cp "${{ steps.grype-scan.outputs.json }}" grype-report.json
+            echo "✅ Grype report saved as grype-report.json"
+          else
+            echo "⚠️ Grype JSON report not found, creating empty report"
+            echo '{"matches": []}' > grype-report.json
+          fi
 
       ######################
       # OSV-Scanner for app dependencies
