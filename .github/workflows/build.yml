@@ -471,6 +471,75 @@ jobs:
           docker buildx imagetools inspect ${{ env.GHCR_IMAGE }}:latest
           docker buildx imagetools inspect ${{ env.GHCR_IMAGE }}:${{ env.SPEEDTEST_VERSION }}
 
+  # Security Scan Job
+  security-scan:
+    name: Security Scan (Trivy + Grype + OSV)
+    runs-on: ubuntu-latest
+    needs: [merge, build]
+    if: github.event_name != 'pull_request' && (github.event_name != 'schedule' || needs.check-base-image.outputs.should_build == 'true')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Pull final image
+        run: docker pull ${{ env.REGISTRY_IMAGE }}:latest
+
+      ######################
+      # Trivy Scan
+      ######################
+      - name: Trivy Scan
+        uses: aquasecurity/trivy-action@6e7b7d1fd3e4fef0c5fa8cce1229c54b9c086bd0 # v0.24.0
+        with:
+          image-ref: ${{ env.REGISTRY_IMAGE }}:latest
+          format: 'table'
+          output: 'trivy-report.txt'
+          exit-code: '0'
+
+      ######################
+      # Grype Scan
+      ######################
+      - name: Grype Scan
+        uses: anchore/scan-action@869c549e657a088dc0441b08ce4fc0ecdac2bb65 # v5
+        with:
+          image: ${{ env.REGISTRY_IMAGE }}:latest
+          output: 'json'
+          sarif: false
+          fail-build: false
+
+      ######################
+      # OSV-Scanner for app dependencies
+      ######################
+      - name: Install Syft (SBOM generator)
+        run: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh
+
+      - name: Generate SBOM
+        run: syft ${{ env.REGISTRY_IMAGE }}:latest -o json > sbom.json
+
+      - name: Install OSV Scanner
+        run: curl -sSfL https://raw.githubusercontent.com/google/osv-scanner/main/install.sh | bash
+
+      - name: Scan SBOM with OSV
+        run: osv-scanner sbom.json --output osv-report.json || true
+
+      ######################
+      # Upload all scan reports
+      ######################
+      - name: Upload Security Scan Reports
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4
+        with:
+          name: security-reports
+          path: |
+            trivy-report.txt
+            grype-report.json
+            sbom.json
+            osv-report.json
+
   # NEW: Update stored Alpine digest after successful build
   # Updated update-digest job
   update-digest:
@@ -520,9 +589,85 @@ jobs:
   # NEW: Build Summary
   build-summary:
     runs-on: ubuntu-latest
-    needs: [check-base-image, build, merge, update-digest]
+    needs: [check-base-image, build, merge, update-digest, security-scan]
     if: always()
     steps:
+      - name: Download Security Reports
+        if: needs.security-scan.result == 'success'
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+        with:
+          name: security-reports
+          path: ./security-reports
+
+      - name: Parse Security Scan Results
+        if: needs.security-scan.result == 'success'
+        id: parse-security
+        run: |
+          # Initialize counters
+          CRITICAL_CVES=0
+          HIGH_CVES=0
+          MEDIUM_CVES=0
+          LOW_CVES=0
+          TOTAL_CVES=0
+          
+          # Parse Trivy report if it exists
+          if [ -f "./security-reports/trivy-report.txt" ]; then
+            echo "📊 Parsing Trivy scan results..."
+            CRITICAL_CVES=$(grep -c "CRITICAL" ./security-reports/trivy-report.txt || echo "0")
+            HIGH_CVES=$(grep -c "HIGH" ./security-reports/trivy-report.txt || echo "0")
+            MEDIUM_CVES=$(grep -c "MEDIUM" ./security-reports/trivy-report.txt || echo "0")
+            LOW_CVES=$(grep -c "LOW" ./security-reports/trivy-report.txt || echo "0")
+            TOTAL_CVES=$((CRITICAL_CVES + HIGH_CVES + MEDIUM_CVES + LOW_CVES))
+          fi
+          
+          # Parse Grype report if it exists (JSON format)
+          if [ -f "./security-reports/grype-report.json" ]; then
+            echo "📊 Parsing Grype scan results..."
+            # Extract vulnerability counts from JSON
+            if command -v jq &> /dev/null; then
+              GRYPE_CRITICAL=$(jq '[.matches[] | select(.vulnerability.severity == "Critical")] | length' ./security-reports/grype-report.json 2>/dev/null || echo "0")
+              GRYPE_HIGH=$(jq '[.matches[] | select(.vulnerability.severity == "High")] | length' ./security-reports/grype-report.json 2>/dev/null || echo "0")
+              GRYPE_MEDIUM=$(jq '[.matches[] | select(.vulnerability.severity == "Medium")] | length' ./security-reports/grype-report.json 2>/dev/null || echo "0")
+              GRYPE_LOW=$(jq '[.matches[] | select(.vulnerability.severity == "Low")] | length' ./security-reports/grype-report.json 2>/dev/null || echo "0")
+              
+              # Add Grype results to totals
+              CRITICAL_CVES=$((CRITICAL_CVES + GRYPE_CRITICAL))
+              HIGH_CVES=$((HIGH_CVES + GRYPE_HIGH))
+              MEDIUM_CVES=$((MEDIUM_CVES + GRYPE_MEDIUM))
+              LOW_CVES=$((LOW_CVES + GRYPE_LOW))
+              TOTAL_CVES=$((CRITICAL_CVES + HIGH_CVES + MEDIUM_CVES + LOW_CVES))
+            fi
+          fi
+          
+          # Parse OSV report if it exists
+          if [ -f "./security-reports/osv-report.json" ]; then
+            echo "📊 Parsing OSV scan results..."
+            if command -v jq &> /dev/null; then
+              OSV_VULNS=$(jq '.results[].packages[].vulnerabilities | length' ./security-reports/osv-report.json 2>/dev/null | awk '{sum += $1} END {print sum+0}')
+              echo "OSV Scanner found $OSV_VULNS vulnerabilities"
+            fi
+          fi
+          
+          # Set outputs for use in summary
+          echo "critical_cves=$CRITICAL_CVES" >> $GITHUB_OUTPUT
+          echo "high_cves=$HIGH_CVES" >> $GITHUB_OUTPUT
+          echo "medium_cves=$MEDIUM_CVES" >> $GITHUB_OUTPUT
+          echo "low_cves=$LOW_CVES" >> $GITHUB_OUTPUT
+          echo "total_cves=$TOTAL_CVES" >> $GITHUB_OUTPUT
+          
+          # Determine security status
+          if [ $CRITICAL_CVES -gt 0 ]; then
+            echo "security_status=🔴 CRITICAL" >> $GITHUB_OUTPUT
+          elif [ $HIGH_CVES -gt 0 ]; then
+            echo "security_status=🟠 HIGH" >> $GITHUB_OUTPUT
+          elif [ $MEDIUM_CVES -gt 0 ]; then
+            echo "security_status=🟡 MEDIUM" >> $GITHUB_OUTPUT
+          elif [ $TOTAL_CVES -gt 0 ]; then
+            echo "security_status=🟢 LOW" >> $GITHUB_OUTPUT
+          else
+            echo "security_status=✅ CLEAN" >> $GITHUB_OUTPUT
+          fi
+
       - name: Generate Build Summary
         run: |
           echo "## 🚀 Build Summary" >> $GITHUB_STEP_SUMMARY
@@ -551,4 +696,30 @@ jobs:
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "🎯 **Multi-arch build successful** for platforms:" >> $GITHUB_STEP_SUMMARY
             echo "- linux/amd64, linux/i386, linux/arm/v7, linux/arm64" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Add security scan results if available
+          if [ "${{ needs.security-scan.result }}" == "success" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## 🔒 Security Scan Results" >> $GITHUB_STEP_SUMMARY
+            echo "**Overall Status:** ${{ steps.parse-security.outputs.security_status }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| 🔴 Critical | ${{ steps.parse-security.outputs.critical_cves }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🟠 High | ${{ steps.parse-security.outputs.high_cves }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🟡 Medium | ${{ steps.parse-security.outputs.medium_cves }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🔵 Low | ${{ steps.parse-security.outputs.low_cves }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Total** | **${{ steps.parse-security.outputs.total_cves }}** |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "📋 **Scan Tools Used:** Trivy, Grype, OSV-Scanner" >> $GITHUB_STEP_SUMMARY
+            echo "📁 **Reports:** Available in workflow artifacts" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.security-scan.result }}" == "failure" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## ⚠️ Security Scan Failed" >> $GITHUB_STEP_SUMMARY
+            echo "Security scanning encountered an error. Please check the security-scan job logs." >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.security-scan.result }}" == "skipped" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## ⏭️ Security Scan Skipped" >> $GITHUB_STEP_SUMMARY
+            echo "Security scan was skipped (likely due to pull request or no build needed)." >> $GITHUB_STEP_SUMMARY
           fi
