@@ -183,6 +183,16 @@ jobs:
             echo "Purpose of Run: ${{ inputs.tags || 'Code changes or manual trigger' }}"
           fi
 
+  # Dummy SonarQube Analysis for Dependabot
+  sonarqube-dummy:
+    name: SonarQube Analysis
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    needs: [check-base-image]
+    steps:
+      - name: Skip SonarQube scan
+        run: echo "Skipping SonarQube scan for Dependabot PRs"
+      
   # SonarQube Analysis Job
   sonarqube:
     name: SonarQube Analysis
