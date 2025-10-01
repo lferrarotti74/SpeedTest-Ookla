@@ -13,7 +13,9 @@ LABEL org.opencontainers.image.source="https://github.com/lferrarotti74/SpeedTes
 
 ENV ENV="/etc/profile"
 
-RUN apk --no-cache update && apk --no-cache upgrade && apk --update --no-cache --virtual .deps add tar curl && \
+# Update packages to latest versions to fix CVEs and install required packages
+RUN apk update && apk upgrade && \
+    apk add --no-cache tar curl && \
     ARCH=$(apk info --print-arch) && \
     case "$ARCH" in \
         x86)    _arch=i386      ;; \
@@ -28,8 +30,7 @@ RUN apk --no-cache update && apk --no-cache upgrade && apk --update --no-cache -
     rm -rf /tmp/speedtest.* && \
     rm -rf /var/cache/apk/* && \
     addgroup -S speedtest \
-    && adduser -S speedtest -G speedtest -g "speedtest" -h /home/speedtest \
-    && apk del .deps
+    && adduser -S speedtest -G speedtest -g "speedtest" -h /home/speedtest
 
 # Copy aliases script (make sure it's executable)
 COPY scripts/aliases.sh /etc/profile.d/aliases.sh
