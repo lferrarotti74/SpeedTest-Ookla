@@ -627,10 +627,18 @@ jobs:
           # Parse Trivy report if it exists
           if [ -f "./security-reports/trivy-report.txt" ]; then
             echo "📊 Parsing Trivy scan results..."
-            CRITICAL_CVES=$(grep -c "CRITICAL" ./security-reports/trivy-report.txt || echo "0")
-            HIGH_CVES=$(grep -c "HIGH" ./security-reports/trivy-report.txt || echo "0")
-            MEDIUM_CVES=$(grep -c "MEDIUM" ./security-reports/trivy-report.txt || echo "0")
-            LOW_CVES=$(grep -c "LOW" ./security-reports/trivy-report.txt || echo "0")
+            # Use safer variable assignment with proper error handling
+            CRITICAL_CVES=$(grep -c "CRITICAL" ./security-reports/trivy-report.txt 2>/dev/null || echo "0")
+            HIGH_CVES=$(grep -c "HIGH" ./security-reports/trivy-report.txt 2>/dev/null || echo "0")
+            MEDIUM_CVES=$(grep -c "MEDIUM" ./security-reports/trivy-report.txt 2>/dev/null || echo "0")
+            LOW_CVES=$(grep -c "LOW" ./security-reports/trivy-report.txt 2>/dev/null || echo "0")
+            
+            # Ensure variables are numeric and clean
+            CRITICAL_CVES=$(echo "$CRITICAL_CVES" | tr -d '\n\r' | grep -E '^[0-9]+$' || echo "0")
+            HIGH_CVES=$(echo "$HIGH_CVES" | tr -d '\n\r' | grep -E '^[0-9]+$' || echo "0")
+            MEDIUM_CVES=$(echo "$MEDIUM_CVES" | tr -d '\n\r' | grep -E '^[0-9]+$' || echo "0")
+            LOW_CVES=$(echo "$LOW_CVES" | tr -d '\n\r' | grep -E '^[0-9]+$' || echo "0")
+            
             TOTAL_CVES=$((CRITICAL_CVES + HIGH_CVES + MEDIUM_CVES + LOW_CVES))
           fi
           
@@ -643,6 +651,12 @@ jobs:
               GRYPE_HIGH=$(jq '[.matches[] | select(.vulnerability.severity == "High")] | length' ./security-reports/grype-report.json 2>/dev/null || echo "0")
               GRYPE_MEDIUM=$(jq '[.matches[] | select(.vulnerability.severity == "Medium")] | length' ./security-reports/grype-report.json 2>/dev/null || echo "0")
               GRYPE_LOW=$(jq '[.matches[] | select(.vulnerability.severity == "Low")] | length' ./security-reports/grype-report.json 2>/dev/null || echo "0")
+              
+              # Ensure Grype variables are numeric and clean
+              GRYPE_CRITICAL=$(echo "$GRYPE_CRITICAL" | tr -d '\n\r' | grep -E '^[0-9]+$' || echo "0")
+              GRYPE_HIGH=$(echo "$GRYPE_HIGH" | tr -d '\n\r' | grep -E '^[0-9]+$' || echo "0")
+              GRYPE_MEDIUM=$(echo "$GRYPE_MEDIUM" | tr -d '\n\r' | grep -E '^[0-9]+$' || echo "0")
+              GRYPE_LOW=$(echo "$GRYPE_LOW" | tr -d '\n\r' | grep -E '^[0-9]+$' || echo "0")
               
               # Add Grype results to totals
               CRITICAL_CVES=$((CRITICAL_CVES + GRYPE_CRITICAL))
@@ -657,26 +671,34 @@ jobs:
           if [ -f "./security-reports/osv-report.json" ]; then
             echo "📊 Parsing OSV scan results..."
             if command -v jq &> /dev/null; then
-              OSV_VULNS=$(jq '.results[].packages[].vulnerabilities | length' ./security-reports/osv-report.json 2>/dev/null | awk '{sum += $1} END {print sum+0}')
+              OSV_VULNS=$(jq '.results[].packages[].vulnerabilities | length' ./security-reports/osv-report.json 2>/dev/null | awk '{sum += $1} END {print sum+0}' || echo "0")
+              OSV_VULNS=$(echo "$OSV_VULNS" | tr -d '\n\r' | grep -E '^[0-9]+$' || echo "0")
               echo "OSV Scanner found $OSV_VULNS vulnerabilities"
             fi
           fi
           
-          # Set outputs for use in summary
-          echo "critical_cves=$CRITICAL_CVES" >> $GITHUB_OUTPUT
-          echo "high_cves=$HIGH_CVES" >> $GITHUB_OUTPUT
-          echo "medium_cves=$MEDIUM_CVES" >> $GITHUB_OUTPUT
-          echo "low_cves=$LOW_CVES" >> $GITHUB_OUTPUT
-          echo "total_cves=$TOTAL_CVES" >> $GITHUB_OUTPUT
+          # Ensure all variables are properly set before output
+          CRITICAL_CVES=${CRITICAL_CVES:-0}
+          HIGH_CVES=${HIGH_CVES:-0}
+          MEDIUM_CVES=${MEDIUM_CVES:-0}
+          LOW_CVES=${LOW_CVES:-0}
+          TOTAL_CVES=${TOTAL_CVES:-0}
           
-          # Determine security status
-          if [ $CRITICAL_CVES -gt 0 ]; then
+          # Set outputs for use in summary
+          echo "critical_cves=${CRITICAL_CVES}" >> $GITHUB_OUTPUT
+          echo "high_cves=${HIGH_CVES}" >> $GITHUB_OUTPUT
+          echo "medium_cves=${MEDIUM_CVES}" >> $GITHUB_OUTPUT
+          echo "low_cves=${LOW_CVES}" >> $GITHUB_OUTPUT
+          echo "total_cves=${TOTAL_CVES}" >> $GITHUB_OUTPUT
+          
+          # Determine security status with proper numeric comparison
+          if [ "${CRITICAL_CVES}" -gt 0 ]; then
             echo "security_status=🔴 CRITICAL" >> $GITHUB_OUTPUT
-          elif [ $HIGH_CVES -gt 0 ]; then
+          elif [ "${HIGH_CVES}" -gt 0 ]; then
             echo "security_status=🟠 HIGH" >> $GITHUB_OUTPUT
-          elif [ $MEDIUM_CVES -gt 0 ]; then
+          elif [ "${MEDIUM_CVES}" -gt 0 ]; then
             echo "security_status=🟡 MEDIUM" >> $GITHUB_OUTPUT
-          elif [ $TOTAL_CVES -gt 0 ]; then
+          elif [ "${TOTAL_CVES}" -gt 0 ]; then
             echo "security_status=🟢 LOW" >> $GITHUB_OUTPUT
           else
             echo "security_status=✅ CLEAN" >> $GITHUB_OUTPUT
