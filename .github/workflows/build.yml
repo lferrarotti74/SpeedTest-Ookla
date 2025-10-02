@@ -399,7 +399,7 @@ jobs:
           echo ${{ steps.source-env.outputs.speedtest_version }} >> "$GITHUB_ENV"
       
       - name: Download digests
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v5.0.0
         with:
           path: /tmp/digests
           pattern: digests-*
@@ -608,7 +608,7 @@ jobs:
     steps:
       - name: Download Security Reports
         if: needs.security-scan.result == 'success'
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+        uses: actions/download-artifact@4a24838f3d5601fd639834081e118c2995d51e1c # v4
         with:
           name: security-reports
           path: ./security-reports
