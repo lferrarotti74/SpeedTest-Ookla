@@ -14,8 +14,11 @@ LABEL org.opencontainers.image.source="https://github.com/lferrarotti74/SpeedTes
 ENV ENV="/etc/profile"
 
 # Update packages to latest versions to fix CVEs and install required packages
-RUN apk update && apk upgrade && \
+# Use --no-cache to avoid package cache and explicitly upgrade curl and libcurl to ensure CVE fixes are applied
+RUN apk update --no-cache && \
+    apk upgrade --no-cache && \
     apk add --no-cache tar curl && \
+    apk upgrade --no-cache curl libcurl && \
     ARCH=$(apk info --print-arch) && \
     case "$ARCH" in \
         x86)    _arch=i386      ;; \
