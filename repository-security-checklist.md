@@ -298,11 +298,20 @@ security-scan:
     
     # Upload SARIF results to GitHub Security
     - name: Upload Trivy SARIF to GitHub Security
-      uses: github/codeql-action/upload-sarif@v3.27.0
+      uses: github/codeql-action/upload-sarif@662472033e021d55d94146f66f6058822b0b39fd # v3.27.0
       if: always()
       with:
         sarif_file: trivy-results.sarif
         category: trivy-container-scan
+
+**Important**: Ensure your workflow has the required permissions for SARIF upload:
+```yaml
+permissions:
+  contents: write
+  packages: write
+  actions: write
+  security-events: write  # Required for uploading SARIF results to GitHub Security
+```
 ```
 
 ##### Enhanced Trivy Setup Benefits:
