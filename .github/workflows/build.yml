@@ -5,6 +5,7 @@ permissions:
   contents: write  # Required for updating variables
   packages: write
   actions: write   # Required for updating repository variables
+  security-events: write  # Required for uploading SARIF results to GitHub Security
 
 on:
   workflow_dispatch:
