@@ -63,6 +63,10 @@ jobs:
         id: source-env
         with:
           env-file: env/.env
+          
+      - name: Echo Speedtest Version from env file
+        run: | 
+          echo ${{ steps.source-env.outputs.speedtest_version }} >> "$GITHUB_ENV"
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
