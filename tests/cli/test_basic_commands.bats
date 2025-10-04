@@ -15,7 +15,7 @@ teardown() {
     run run_speedtest_container_output "--help"
     [ "$status" -eq 0 ]
     [[ "$output" =~ "Speedtest by Ookla" ]]
-    [[ "$output" =~ "USAGE:" ]]
+    [[ "$output" =~ "Usage:" ]]
     print_success "Help command works correctly"
 }
 
@@ -31,7 +31,7 @@ teardown() {
     run run_speedtest_container_output "-h"
     [ "$status" -eq 0 ]
     [[ "$output" =~ "Speedtest by Ookla" ]]
-    [[ "$output" =~ "USAGE:" ]]
+    [[ "$output" =~ "Usage:" ]]
     print_success "Short help command works correctly"
 }
 
@@ -58,9 +58,9 @@ teardown() {
 }
 
 @test "Invalid option should return error" {
-    run get_container_exit_code "--invalid-option"
-    [ "$status" -ne 0 ]
-    print_success "Invalid options are properly rejected"
+    run run_speedtest_container_output "--invalid-option"
+    [ "$status" -eq 255 ]
+    print_success "Invalid option correctly returns error"
 }
 
 @test "speedtest without arguments should show usage" {

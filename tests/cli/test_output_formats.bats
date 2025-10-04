@@ -15,12 +15,15 @@ teardown() {
     run run_speedtest_container_output "-L --format=json-pretty"
     [ "$status" -eq 0 ]
     
+    # Store output for later validation
+    local json_output="$output"
+    
     # Validate JSON structure
-    run validate_json "$output"
+    run validate_json "$json_output"
     [ "$status" -eq 0 ]
     
     # Check for expected JSON fields in server listing
-    [[ "$output" =~ "servers" ]]
+    [[ "$json_output" =~ "servers" ]]
     print_success "JSON-pretty format works correctly"
 }
 
@@ -28,12 +31,15 @@ teardown() {
     run run_speedtest_container_output "-L --format=json"
     [ "$status" -eq 0 ]
     
+    # Store output for later validation
+    local json_output="$output"
+    
     # Validate JSON structure
-    run validate_json "$output"
+    run validate_json "$json_output"
     [ "$status" -eq 0 ]
     
     # Check for expected JSON fields
-    [[ "$output" =~ "servers" ]]
+    [[ "$json_output" =~ "servers" ]]
     print_success "JSON format works correctly"
 }
 
@@ -56,7 +62,7 @@ teardown() {
 }
 
 @test "Invalid format should return error" {
-    run get_container_exit_code "-L --format=invalid"
+    run run_speedtest_container_output "-L --format=invalid"
     [ "$status" -ne 0 ]
     print_success "Invalid format options are properly rejected"
 }

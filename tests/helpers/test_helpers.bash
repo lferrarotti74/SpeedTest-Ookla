@@ -17,16 +17,32 @@ docker_image_exists() {
     docker images --format "table {{.Repository}}:{{.Tag}}" | grep -q "^${image_name}$"
 }
 
-# Helper function to run speedtest container with command
+# Helper function to run speedtest container with speedtest command
 run_speedtest_container() {
+    local cmd="$1"
+    local extra_args="${2:-}"
+    
+    docker run --rm ${extra_args} "${TEST_IMAGE}" speedtest ${cmd}
+}
+
+# Helper function to run speedtest container with shell command
+run_shell_container() {
     local cmd="$1"
     local extra_args="${2:-}"
     
     docker run --rm ${extra_args} "${TEST_IMAGE}" ${cmd}
 }
 
-# Helper function to run speedtest container and capture output
+# Helper function to run speedtest container and capture output (for CLI tests)
 run_speedtest_container_output() {
+    local cmd="$1"
+    local extra_args="${2:-}"
+    
+    docker run --rm ${extra_args} "${TEST_IMAGE}" speedtest ${cmd} 2>&1
+}
+
+# Helper function to run shell commands in container and capture output (for container tests)
+run_shell_container_output() {
     local cmd="$1"
     local extra_args="${2:-}"
     
