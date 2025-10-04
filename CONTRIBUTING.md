@@ -75,22 +75,25 @@ This project and everyone participating in it is governed by our [Code of Conduc
 2. **Test basic functionality:**
    ```bash
    # Test basic speed test
-   docker run --rm speedtest-ookla:test --accept-license --accept-gdpr
+   docker run --rm speedtest-ookla:test speedtest
    
    # Test help command
-   docker run --rm speedtest-ookla:test --help
+   docker run --rm speedtest-ookla:test speedtest --help
    
    # Test JSON output
-   docker run --rm speedtest-ookla:test --format=json --accept-license --accept-gdpr
+   docker run --rm speedtest-ookla:test speedtest --format=json
    ```
 
 3. **Test with different options:**
    ```bash
    # Test server listing
-   docker run --rm speedtest-ookla:test --servers
+   docker run --rm speedtest-ookla:test speedtest -L
    
    # Test specific output formats
-   docker run --rm speedtest-ookla:test --format=csv --accept-license --accept-gdpr
+   docker run --rm speedtest-ookla:test speedtest --format=csv
+   
+   # Test with verbosity
+   docker run --rm speedtest-ookla:test speedtest -v
    ```
 
 Make sure all tests pass before submitting your changes.
