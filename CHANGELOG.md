@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-## [v2025.01.01] - 2025-01-01
+## [v1.2.0] - 2025-01-01
 
 ### Added
 - Docker image for Ookla Speedtest CLI
@@ -46,9 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Release Notes Guidelines
 
 ### Version Format
-- **vYYYY.MM.DD** (e.g., v2025.05.06)
-- Date-based versioning for Docker images
-- Optional semantic versioning for major releases
+- **vX.Y.Z** (e.g., v1.2.0)
+- Semantic versioning for Docker images
+- Optional date-based versioning for development releases
 
 ### Change Categories
 - **Added**: New features
