@@ -168,4 +168,4 @@ For answers to common questions about this code of conduct, see the FAQ at
 
 **Contact**: For questions about this Code of Conduct, contact [luca@ferrarotti.it](mailto:luca@ferrarotti.it)
 
-**Last Updated**: January 2024
+**Last Updated**: January 2025

@@ -6,8 +6,8 @@ We actively support the following versions of SpeedTest-Ookla with security upda
 
 | Version     | Supported          |
 | ----------- | ------------------ |
-| v2025.x.x   | :white_check_mark: |
-| < v2025.x.x | :x:                |
+| v1.2.0      | :white_check_mark: |
+| < v1.2.0    | :x:                |
 
 ## Reporting a Vulnerability
 
@@ -132,7 +132,7 @@ We appreciate security researchers and users who help improve our security:
 
 ---
 
-**Last Updated**: January 2024
+**Last Updated**: January 2025
 **Next Review**: Quarterly
 
 *This security policy is subject to updates. Check back regularly for the latest version.*
