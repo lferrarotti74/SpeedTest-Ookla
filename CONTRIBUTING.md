@@ -67,6 +67,48 @@ This project and everyone participating in it is governed by our [Code of Conduc
 
 ### Testing Your Changes
 
+#### Automated Testing
+
+The project includes comprehensive automated tests using the BATS (Bash Automated Testing System) framework. Tests are automatically run on:
+- Pushes to the `dev` branch
+- Pull requests to `dev` and `main` branches
+
+**Running Tests Locally:**
+
+1. **Install BATS (if not already installed):**
+   ```bash
+   # On Ubuntu/Debian
+   sudo apt-get install bats
+   
+   # On macOS
+   brew install bats-core
+   ```
+
+2. **Build the test image:**
+   ```bash
+   docker build --tag speedtest-test:latest .
+   ```
+
+3. **Run all tests:**
+   ```bash
+   # Run container tests
+   bats tests/container/
+   
+   # Run CLI tests
+   bats tests/cli/
+   
+   # Run all tests
+   bats tests/
+   ```
+
+**Test Categories:**
+- **Container Tests** (`tests/container/`): Validate Docker image build, user permissions, file structure
+- **CLI Tests** (`tests/cli/`): Test command-line functionality, output formats, configuration handling
+- **Helpers** (`tests/helpers/`): Reusable test utilities and functions
+- **Fixtures** (`tests/fixtures/`): Sample data and configuration files for testing
+
+#### Manual Testing
+
 1. **Build and test the Docker image:**
    ```bash
    docker build -t speedtest-ookla:test .
@@ -96,7 +138,7 @@ This project and everyone participating in it is governed by our [Code of Conduc
    docker run --rm speedtest-ookla:test speedtest -v
    ```
 
-Make sure all tests pass before submitting your changes.
+**Important:** Make sure all automated tests pass before submitting your changes. The CI/CD pipeline will block PRs if tests fail.
 
 ## Development Guidelines
 
