@@ -38,7 +38,7 @@ docker pull lferrarotti74/speedtest-ookla:latest
 ### Run a Basic Speed Test
 
 ```bash
-docker run --rm lferrarotti74/speedtest-ookla:latest
+docker run --rm lferrarotti74/speedtest-ookla:latest speedtest
 ```
 
 ## Usage Examples
@@ -49,49 +49,58 @@ Run a standard speed test:
 
 ```bash
 # Basic speed test
-docker run --rm lferrarotti74/speedtest-ookla:latest
+docker run --rm lferrarotti74/speedtest-ookla:latest speedtest
 
 # Speed test with specific server ID
-docker run --rm lferrarotti74/speedtest-ookla:latest --server-id=12345
+docker run --rm lferrarotti74/speedtest-ookla:latest speedtest --server-id=12345
 ```
 
 ### List Available Servers
 
 ```bash
 # List nearby servers
-docker run --rm lferrarotti74/speedtest-ookla:latest --servers
-
-# List servers in a specific country
-docker run --rm lferrarotti74/speedtest-ookla:latest --servers --country=US
+docker run --rm lferrarotti74/speedtest-ookla:latest speedtest -L
 ```
 
 ### Output Formats
 
 ```bash
 # JSON output
-docker run --rm lferrarotti74/speedtest-ookla:latest --format=json
+docker run --rm lferrarotti74/speedtest-ookla:latest speedtest --format=json
 
 # CSV output
-docker run --rm lferrarotti74/speedtest-ookla:latest --format=csv
+docker run --rm lferrarotti74/speedtest-ookla:latest speedtest --format=csv
 
 # JSONL output for logging
-docker run --rm lferrarotti74/speedtest-ookla:latest --format=jsonl
+docker run --rm lferrarotti74/speedtest-ookla:latest speedtest --format=jsonl
+
+# Pretty JSON output
+docker run --rm lferrarotti74/speedtest-ookla:latest speedtest --format=json-pretty
+
+# TSV output
+docker run --rm lferrarotti74/speedtest-ookla:latest speedtest --format=tsv
 ```
 
 ### Advanced Options
 
 ```bash
-# Test only download speed
-docker run --rm lferrarotti74/speedtest-ookla:latest --no-upload
-
-# Test only upload speed
-docker run --rm lferrarotti74/speedtest-ookla:latest --no-download
-
-# Accept license and GDPR automatically
-docker run --rm lferrarotti74/speedtest-ookla:latest --accept-license --accept-gdpr
-
 # Verbose output
-docker run --rm lferrarotti74/speedtest-ookla:latest --verbose
+docker run --rm lferrarotti74/speedtest-ookla:latest speedtest -v
+
+# Multiple verbosity levels
+docker run --rm lferrarotti74/speedtest-ookla:latest speedtest -vv
+
+# Specify precision
+docker run --rm lferrarotti74/speedtest-ookla:latest speedtest --precision=4
+
+# Use specific units
+docker run --rm lferrarotti74/speedtest-ookla:latest speedtest --unit=Gbps
+
+# Auto-scaled decimal bits
+docker run --rm lferrarotti74/speedtest-ookla:latest speedtest -a
+
+# Show server selection details
+docker run --rm lferrarotti74/speedtest-ookla:latest speedtest --selection-details
 ```
 
 ### Using with Docker Compose
@@ -104,12 +113,12 @@ version: '3.8'
 services:
   speedtest:
     image: lferrarotti74/speedtest-ookla:latest
-    command: ["--format=json", "--accept-license", "--accept-gdpr"]
+    command: ["speedtest", "--format=json"]
     
   # Scheduled speed test (requires cron or similar)
   speedtest-scheduled:
     image: lferrarotti74/speedtest-ookla:latest
-    command: ["--format=csv", "--accept-license", "--accept-gdpr"]
+    command: ["speedtest", "--format=csv"]
     volumes:
       - ./results:/results
 ```
@@ -118,27 +127,68 @@ services:
 
 ```bash
 # Save results to a file
-docker run --rm -v $(pwd)/results:/results lferrarotti74/speedtest-ookla:latest --format=csv --accept-license --accept-gdpr > results/speedtest-$(date +%Y%m%d-%H%M%S).csv
+docker run --rm -v $(pwd)/results:/results lferrarotti74/speedtest-ookla:latest speedtest --format=csv > results/speedtest-$(date +%Y%m%d-%H%M%S).csv
 
 # Run periodic tests (example with cron)
-# Add to crontab: */30 * * * * docker run --rm -v /path/to/results:/results lferrarotti74/speedtest-ookla:latest --format=json --accept-license --accept-gdpr >> /path/to/results/speedtest.jsonl
+# Add to crontab: */30 * * * * docker run --rm -v /path/to/results:/results lferrarotti74/speedtest-ookla:latest speedtest --format=json >> /path/to/results/speedtest.jsonl
 ```
 
 ## Available Command Options
 
 The Speedtest CLI supports various options:
 
-- `--servers` - List available servers
-- `--server-id=<id>` - Use specific server
-- `--format=<format>` - Output format (human-readable, csv, tsv, json, jsonl)
-- `--precision=<digits>` - Number of decimal places (0-8, default 2)
-- `--unit=<unit>` - Output unit for speeds (bps, kbps, Mbps, Gbps)
-- `--no-download` - Skip download test
-- `--no-upload` - Skip upload test
+### Basic Options
+- `-h, --help` - Print usage information
+- `-V, --version` - Print version number
+- `-L, --servers` - List nearest servers
+- `-s, --server-id=#` - Specify a server from the server list using its id
+- `-o, --host=ARG` - Specify a server using its host's fully qualified domain name
+
+### Network Interface Options
+- `-I, --interface=ARG` - Attempt to bind to the specified interface when connecting to servers
+- `-i, --ip=ARG` - Attempt to bind to the specified IP address when connecting to servers
+
+### Output Format Options
+- `-f, --format=ARG` - Output format (see valid formats below)
+- `-P, --precision=#` - Number of decimals to use (0-8, default=2)
+- `--output-header` - Show output header for CSV and TSV formats
+
+### Progress and Display Options
+- `-p, --progress=yes|no` - Enable or disable progress bar (defaults to yes when interactive)
+- `--progress-update-interval=#` - Progress update interval (100-1000 milliseconds)
+- `--selection-details` - Show server selection details
+- `-v` - Logging verbosity (specify multiple times for higher verbosity)
+
+### Unit Options
+- `-u, --unit[=ARG]` - Output unit for displaying speeds (only for human-readable format, default: Mbps)
+- `-a` - Shortcut for `[-u auto-decimal-bits]`
+- `-A` - Shortcut for `[-u auto-decimal-bytes]`
+- `-b` - Shortcut for `[-u auto-binary-bits]`
+- `-B` - Shortcut for `[-u auto-binary-bytes]`
+
+### Security Options
+- `--ca-certificate=ARG` - CA Certificate bundle path
+
+### Legacy Options (Docker Container Specific)
 - `--accept-license` - Accept license without prompt
 - `--accept-gdpr` - Accept GDPR without prompt
-- `--verbose` - Verbose output
-- `--help` - Show help information
+
+### Valid Output Formats
+- `human-readable` (default) - Human-friendly output
+- `csv` - Comma-separated values
+- `tsv` - Tab-separated values  
+- `json` - JSON format
+- `jsonl` - JSON Lines format
+- `json-pretty` - Pretty-printed JSON
+
+**Note**: Machine readable formats (csv, tsv, json, jsonl, json-pretty) use bytes as the unit of measure with max precision.
+
+### Valid Units for `-u` Flag
+**Decimal prefix, bits per second**: `bps`, `kbps`, `Mbps`, `Gbps`  
+**Decimal prefix, bytes per second**: `B/s`, `kB/s`, `MB/s`, `GB/s`  
+**Binary prefix, bits per second**: `kibps`, `Mibps`, `Gibps`  
+**Binary prefix, bytes per second**: `kiB/s`, `MiB/s`, `GiB/s`  
+**Auto-scaled prefix**: `auto-binary-bits`, `auto-binary-bytes`, `auto-decimal-bits`, `auto-decimal-bytes`
 
 ## Network Requirements
 
