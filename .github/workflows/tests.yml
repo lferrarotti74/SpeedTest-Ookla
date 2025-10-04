@@ -74,7 +74,7 @@ jobs:
       - name: Build test image
         run: |
           docker build \
-            --build-arg VERSION=${{ steps.source-env.outputs.speedtest_version }} \
+            --build-arg VERSION=${{ env.SPEEDTEST_VERSION }} \
             --tag speedtest-test:latest \
             .
 
