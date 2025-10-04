@@ -1,6 +1,7 @@
 # SpeedTest-Ookla
 
 [![GitHub CI](https://github.com/lferrarotti74/SpeedTest-Ookla/workflows/Build%20release%20image/badge.svg)](https://github.com/lferrarotti74/SpeedTest-Ookla/actions/workflows/build.yml)
+[![Unit Tests](https://github.com/lferrarotti74/SpeedTest-Ookla/workflows/Unit%20Test/badge.svg)](https://github.com/lferrarotti74/SpeedTest-Ookla/actions/workflows/tests.yml)
 [![Release](https://img.shields.io/github/v/release/lferrarotti74/SpeedTest-Ookla)](https://github.com/lferrarotti74/SpeedTest-Ookla/releases)
 [![Docker Hub](https://img.shields.io/docker/pulls/lferrarotti74/speedtest-ookla)](https://hub.docker.com/r/lferrarotti74/speedtest-ookla)
 [![Docker Image Size](https://img.shields.io/docker/image-size/lferrarotti74/speedtest-ookla/latest)](https://hub.docker.com/r/lferrarotti74/speedtest-ookla)
