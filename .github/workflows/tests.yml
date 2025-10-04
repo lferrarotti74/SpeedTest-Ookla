@@ -75,7 +75,7 @@ jobs:
         run: |
           docker build \
             --build-arg VERSION=${{ env.SPEEDTEST_VERSION }} \
-            --tag speedtest-test:latest \
+            --tag speedtest-ookla:latest \
             .
 
       - name: Install BATS
