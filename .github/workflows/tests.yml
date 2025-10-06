@@ -98,4 +98,4 @@ jobs:
       - name: Cleanup test image
         if: always()
         run: |
-          docker rmi speedtest-test:latest || true
+          docker rmi speedtest-ookla:latest || true
