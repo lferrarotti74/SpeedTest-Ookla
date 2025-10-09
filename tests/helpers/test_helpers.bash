@@ -86,7 +86,7 @@ check_speedtest_binary() {
 # Helper function to print test section header
 print_test_header() {
     local header="$1"
-    echo -e "${YELLOW}=== ${header} ===${NC}"
+    echo -e "${YELLOW}=== ${header} ===${NC}" >&3
 }
 
 # Helper function to print success message
