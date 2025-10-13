@@ -14,7 +14,18 @@ updates:
       day: "saturday"
       # Check when starting the updates
       time: "04:00"
+    target-branch: "main"
     # Enable a limit for pull requests for Docker dependencies
+    open-pull-requests-limit: 10
+
+  # Enable version updates for Docker on dev branch
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "saturday"
+      time: "04:00"
+    target-branch: "dev"
     open-pull-requests-limit: 10
 
   # Maintain dependencies for GitHub Actions
@@ -23,6 +34,18 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
+    target-branch: "main"
+    open-pull-requests-limit: 10
+    ignore:
+    - dependency-name: "softprops/action-gh-release"
+      update-types: ["version-update:semver-major"]
+
+  # Maintain dependencies for GitHub Actions on dev branch
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    target-branch: "dev"
     open-pull-requests-limit: 10
     ignore:
     - dependency-name: "softprops/action-gh-release"
