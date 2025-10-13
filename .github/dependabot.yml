@@ -36,9 +36,11 @@ updates:
       interval: "daily"
     target-branch: "main"
     open-pull-requests-limit: 10
+    # Actions are pinned to full SHAs for supply-chain security.
+    # Dependabot does not reliably update SHA-pinned actions; ignore all action updates.
     ignore:
-    - dependency-name: "softprops/action-gh-release"
-      update-types: ["version-update:semver-major"]
+    - dependency-name: "*"
+      update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
 
   # Maintain dependencies for GitHub Actions on dev branch
   - package-ecosystem: "github-actions"
@@ -47,6 +49,7 @@ updates:
       interval: "daily"
     target-branch: "dev"
     open-pull-requests-limit: 10
+    # Ignore all action updates for SHA-pinned workflows
     ignore:
-    - dependency-name: "softprops/action-gh-release"
-      update-types: ["version-update:semver-major"]
+    - dependency-name: "*"
+      update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]

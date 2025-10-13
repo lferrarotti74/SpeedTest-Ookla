@@ -55,4 +55,4 @@ jobs:
 
       - name: Skip merge (dev already contains main)
         if: steps.need.outputs.needs_merge == 'false'
-        run: echo "No merge needed: dev already contains main"
+        run: 'echo "No merge needed: dev already contains main"'
