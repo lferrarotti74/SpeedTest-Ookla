@@ -81,6 +81,15 @@ Please provide as much information as possible:
 4. **Least Privilege**: Follow principle of least privilege
 5. **Security Testing**: Test for common vulnerabilities
 
+### CI Workflow Security
+
+- **Pin Actions to Full SHAs**: All third‑party GitHub Actions must be pinned to full 40‑character commit SHAs (not tags or branches) to prevent supply‑chain attacks and ensure reproducibility.
+- **Periodic Review**: Review pinned SHAs periodically and update to latest secure releases. Verify SHAs from the official action repository before changing.
+- **Optional Enforcement**: Consider adding an automated check that fails on non‑SHA references to actions (see GitHub Marketplace “Enforce Full SHA Commit Pinning in GitHub Actions”).
+
+Current status:
+- Workflows `dev-to-main-pr.yml` and `sync-main-to-dev.yml` are pinned to exact SHAs for `actions/github-script` and `actions/checkout` respectively.
+
 ## Security Features
 
 ### Current Security Measures

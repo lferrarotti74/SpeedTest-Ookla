@@ -1,0 +1,42 @@
+name: Open PR from dev to main
+
+on:
+  push:
+    branches:
+      - dev
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: dev-to-main-pr
+  cancel-in-progress: true
+
+jobs:
+  open-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create PR from dev to main (if none exists)
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const base = 'main';
+            const head = 'dev';
+            const prs = await github.rest.pulls.list({ owner, repo, state: 'open', base, head: `${owner}:${head}` });
+            if (prs.data.length > 0) {
+              core.info('PR from dev to main already exists; no action taken.');
+              return;
+            }
+            const res = await github.rest.pulls.create({
+              owner,
+              repo,
+              base,
+              head,
+              title: 'Sync dev into main',
+              body: 'Automated PR to merge changes from dev into main after a push to dev. This respects main branch protection and runs required checks.',
+            });
+            core.info(`Created PR #${res.data.number}`);
