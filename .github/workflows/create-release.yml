@@ -25,5 +25,3 @@ jobs:
       tag: ${{ inputs.tag }}
       dry_run: ${{ inputs.dry_run }}
       force: ${{ inputs.force }}
-    secrets:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
