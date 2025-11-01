@@ -8,99 +8,18 @@ on:
       - 'README.md'
       - 'LICENSE'
 
-env:
-  REGISTRY: docker.io
-  IMAGE_NAME: ${{ github.repository }}
-  SHA: ${{ github.event.pull_request.head.sha || github.event.after }}
-  # Using `latest` as the tag to compare assuming that it's already pushed
-  COMPARE_TAG: latest
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
 
 jobs:
-  build:
-    # if: github.actor!= 'dependabot[bot]'   # ignore the pull request which comes from user dependabot.
-
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      pull-requests: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.2.0
-        with:
-          ref: ${{ env.SHA }}
-
-      - name: Set Environment
-        uses: c-py/action-dotenv-to-setenv@925b5d99a3f1e4bd7b4e9928be4e2491e29891d9 # v5
-        id: source-env
-        with:
-          env-file: env/.env
-
-      - name: Echo Speedtest Version from env file
-        run: | 
-          echo ${{ steps.source-env.outputs.speedtest_version }} >> "$GITHUB_ENV" 
-
-      - name: Setup Docker buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
-        with:
-          driver-opts: |
-            image=moby/buildkit:v0.10.6
-
-      # Login against a Docker registry except on PR
-      - name: Log into registry ${{ env.REGISTRY }}
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          labels: |
-            org.opencontainers.image.revision=${{ env.SHA }}
-          tags: |
-            type=edge,branch=$repo.default_branch
-            type=semver,pattern=v{{version}}
-            type=sha,prefix=,suffix=,format=short
-
-      # set lower case image name
-      - name: set lower case owner name
-        run: |
-          echo "IMAGE_LC=${IMAGE,,}" >>${GITHUB_ENV}
-        env:
-          IMAGE: '${{ github.repository }}'
-
-      # Build and push Docker image with Buildx (don't push on PR)
-      - name: Build and push Docker image
-        id: build-and-push
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        with:
-          context: .
-          build-args: VERSION=${{ env.SPEEDTEST_VERSION }}
-          push: false
-          load: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          # cache-from: type=gha
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_LC }}:buildcache
-          # cache-to: type=gha,mode=max
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_LC }}:buildcache,mode=max
-
-      - name: Docker Scout
-        id: docker-scout
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: docker/scout-action@f8c776824083494ab0d56b8105ba2ca85c86e4de # v1
-        with:
-          command: cves,recommendations,compare
-          image: ${{ steps.meta.outputs.tags }}
-          to: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.COMPARE_TAG }}
-          ignore-base: true
-          ignore-unchanged: true
-          only-severities: critical,high,medium
-          only-fixed: true
-          write-comment: true
-          github-token: ${{ secrets.GITHUB_TOKEN }} # to be able to write the comment
+  scout-docker-image:
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/docker-scout.yml@93635d1857059b50c4910a0f57bd0b1a3aaf6eb8
+    with:
+      image_name: ${{ github.repository }}
+      compare_tag: latest
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
