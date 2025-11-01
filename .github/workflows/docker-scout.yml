@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   scout-docker-image:
-    uses: lferrarotti74/github-workflows-templates/.github/workflows/docker-scout.yml@fafd12907371437cfa8e257ed6e7658087212b5f
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/docker-scout.yml@411c243221ec467e1729060516a5929687e14ee0
     with:
       image_name: ${{ github.repository }}
       compare_tag: latest
