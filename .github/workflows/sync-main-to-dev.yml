@@ -1,4 +1,4 @@
-name: Sync main updates to dev
+name: Sync Main to Dev
 
 on:
   push:
@@ -6,55 +6,11 @@ on:
       - main
 
 permissions:
-  contents: write
-
-concurrency:
-  group: sync-main-to-dev
-  cancel-in-progress: true
+  contents: write  # needed for pushing commits
 
 jobs:
-  sync:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout dev branch
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: dev
-          fetch-depth: 0
-
-      - name: Configure Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      - name: Add authenticated remote
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
-
-      - name: Determine if merge is needed
-        id: need
-        run: |
-          git fetch origin main
-          if git merge-base --is-ancestor origin/main dev; then
-            echo "needs_merge=false" >> $GITHUB_OUTPUT
-          else
-            echo "needs_merge=true" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Merge main into dev
-        if: steps.need.outputs.needs_merge == 'true'
-        run: |
-          set -e
-          git checkout dev
-          git merge origin/main --no-ff -m "chore: sync main updates into dev"
-
-      - name: Push changes to dev
-        if: steps.need.outputs.needs_merge == 'true'
-        run: git push origin dev
-
-      - name: Skip merge (dev already contains main)
-        if: steps.need.outputs.needs_merge == 'false'
-        run: 'echo "No merge needed: dev already contains main"'
+  sync-main-to-dev:
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/sync-main-to-dev.yml@9947412795ffd259361db1e342572a980a6b8590
+    with:
+      source_branch: main
+      target_branch: dev
