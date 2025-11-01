@@ -1,6 +1,10 @@
 # .github/workflows/create-release.yml
 name: Create Release
 
+permissions:
+  contents: write
+  packages: write
+
 on:
   workflow_dispatch:
     inputs:
