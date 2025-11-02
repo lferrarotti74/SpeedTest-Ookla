@@ -28,7 +28,7 @@ RUN apk update --no-cache && \
         *)      _arch="$ARCH"   ;; \
     esac && \
     cd /tmp && \
-    curl --proto "=https" --tlsv1.2 -sSf -L https://install.speedtest.net/app/cli/ookla-speedtest-${VERSION}-linux-${_arch}.tgz | tar xz && \
+    curl --proto "=https" --tlsv1.2 -sSf -L "https://install.speedtest.net/app/cli/ookla-speedtest-${VERSION}-linux-${_arch}.tgz" | tar xz && \
     mv /tmp/speedtest /usr/local/bin/ && \
     rm -rf /tmp/speedtest.* && \
     rm -rf /var/cache/apk/* && \
