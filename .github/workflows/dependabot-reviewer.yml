@@ -10,6 +10,6 @@ permissions:
 
 jobs:
   dependabot-review:
-    uses: lferrarotti74/github-workflows-templates/.github/workflows/dependabot-reviewer.yml@472579106d3f35ae543624f91c5ff6ef08b8a758
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/dependabot-reviewer.yml@490dcf94432c8e39b1b149441fc2cb8bab80ddbe
     with:
       auto_merge: true
