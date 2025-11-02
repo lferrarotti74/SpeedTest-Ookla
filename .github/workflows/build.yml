@@ -1,53 +1,22 @@
-name: Build release image
+name: Build and Publish (Caller)
 
-# Add permissions block
-permissions:
-  contents: write  # Required for updating variables
-  packages: write
-  actions: write   # Required for updating repository variables
-  security-events: write  # Required for uploading SARIF results to GitHub Security
+# This workflow calls the reusable template in this repo and mirrors
+# the original triggers, including paths-ignore and pull_request handling.
 
 on:
-  workflow_dispatch:
-    inputs:
-      logLevel:
-        description: 'Log level'
-        required: true
-        default: 'information'
-        type: choice
-        options:
-          - information
-          - debug
-          - warning
-          - critical
-      tags:
-        description: 'Purpose of Run This Workflow?'
-        required: true
-        type: string
-      force_build:
-        description: 'Force build even if no base image updates'
-        required: false
-        default: false
-        type: boolean
-      update_digest:
-        description: 'Update base image digests after manual build'
-        required: false
-        default: false
-        type: boolean
   push:
-    branches:
-      - "main"
+    branches: [ "main" ]
     paths-ignore:
       # Documentation files
       - '*.md'
       - 'docs/**'
       - '.github/**/*.md'
-      
+
       # License and legal files
       - 'LICENSE*'
       - 'COPYING*'
       - 'COPYRIGHT*'
-      
+
       # Git and GitHub specific files
       - '.gitignore'
       - '.gitattributes'
@@ -55,826 +24,148 @@ on:
       - '.github/PULL_REQUEST_TEMPLATE/**'
       - '.github/dependabot.yml'
       - '.github/CODEOWNERS'
-      
+
       # Editor and IDE files
       - '.vscode/**'
       - '.idea/**'
       - '*.swp'
       - '*.swo'
       - '*~'
-      
+
       # Package manager files that don't affect builds
       - '.npmignore'
       - '.dockerignore'
       - '.eslintignore'
       - '.prettierignore'
-      
+
       # CI/CD configuration for other systems
       - '.travis.yml'
       - '.circleci/**'
       - 'Jenkinsfile'
       - '.gitlab-ci.yml'
-      
+
       # Common non-code files
       - '*.txt'
       - 'CHANGELOG*'
       - 'CONTRIBUTING*'
       - 'AUTHORS*'
       - 'MAINTAINERS*'
-  pull_request:
-    types: [opened, synchronize, reopened]
-  # NEW: Schedule for checking Alpine Linux updates
-  schedule:
-    - cron: '0 6 * * *'  # Daily at 6 AM UTC
 
-env:
-  REGISTRY_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/speedtest-ookla
-  GHCR_IMAGE: ghcr.io/${{ github.repository_owner }}/speedtest-ookla
+  pull_request:
+    types: [ opened, synchronize, reopened ]
+    paths-ignore:
+      # Documentation files
+      - '*.md'
+      - 'docs/**'
+      - '.github/**/*.md'
+
+      # License and legal files
+      - 'LICENSE*'
+      - 'COPYING*'
+      - 'COPYRIGHT*'
+
+      # Git and GitHub specific files
+      - '.gitignore'
+      - '.gitattributes'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/PULL_REQUEST_TEMPLATE/**'
+      - '.github/dependabot.yml'
+      - '.github/CODEOWNERS'
+
+      # Editor and IDE files
+      - '.vscode/**'
+      - '.idea/**'
+      - '*.swp'
+      - '*.swo'
+      - '*~'
+
+      # Package manager files that don't affect builds
+      - '.npmignore'
+      - '.dockerignore'
+      - '.eslintignore'
+      - '.prettierignore'
+
+      # CI/CD configuration for other systems
+      - '.travis.yml'
+      - '.circleci/**'
+      - 'Jenkinsfile'
+      - '.gitlab-ci.yml'
+
+      # Common non-code files
+      - '*.txt'
+      - 'CHANGELOG*'
+      - 'CONTRIBUTING*'
+      - 'AUTHORS*'
+      - 'MAINTAINERS*'
+
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"  # daily at 03:00 UTC
+
+# Token permissions required by the reusable workflow
+permissions:
+  contents: write           # needed for digest update job in the reusable workflow
+  packages: write           # GHCR publishing via github.token
+  actions: write            # allows patching repo variables via API
+  security-events: write    # enables SARIF upload in security scan
 
 jobs:
-  # NEW: Check if base image (Alpine) has been updated
-  check-base-image:
-    runs-on: ubuntu-latest
-    outputs:
-      should_build: ${{ steps.check-image.outputs.should_build || steps.default.outputs.should_build }}
-      update_reason: ${{ steps.check-image.outputs.update_reason || steps.default.outputs.update_reason }}
-      alpine_digest: ${{ steps.check-image.outputs.digest || steps.default.outputs.digest }}
-    steps:
-      - name: Check Alpine Linux updates
-        id: check-image
-        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (inputs.force_build == 'false' || inputs.update_digest == 'true'))
-        run: |
-          echo "🔍 Checking Alpine Linux for updates..."
-          
-          # Get current digest from Docker Hub using a more reliable method
-          echo "Pulling latest Alpine image info..."
-          
-          # Use docker manifest inspect instead of buildx imagetools
-          NEW_DIGEST=$(docker manifest inspect alpine:latest | jq -r '.config.digest // .digest // empty')
-          
-          # Fallback method if the above doesn't work
-          if [ -z "$NEW_DIGEST" ] || [ "$NEW_DIGEST" = "null" ]; then
-            echo "Trying alternative digest retrieval method..."
-            docker pull alpine:latest > /dev/null 2>&1
-            NEW_DIGEST=$(docker image inspect alpine:latest --format '{{index .RepoDigests 0}}' | cut -d'@' -f2)
-          fi
-          
-          # Final fallback using docker buildx but with better error handling
-          if [ -z "$NEW_DIGEST" ] || [ "$NEW_DIGEST" = "null" ]; then
-            echo "Using buildx imagetools as fallback..."
-            set +e  # Don't exit on error
-            INSPECT_OUTPUT=$(docker buildx imagetools inspect alpine:latest --format '{{json .}}' 2>/dev/null)
-            if [ $? -eq 0 ]; then
-              NEW_DIGEST=$(echo "$INSPECT_OUTPUT" | jq -r '.manifest.digest // .digest // empty')
-            fi
-            set -e  # Re-enable exit on error
-          fi
-          
-          echo "Current Alpine digest: $NEW_DIGEST"
-          
-          # Validate digest format
-          if [[ ! "$NEW_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
-            echo "⚠️ Warning: Retrieved digest format seems invalid: $NEW_DIGEST"
-            echo "Skipping build due to digest retrieval error."
-            echo "should_build=false" >> $GITHUB_OUTPUT
-            echo "update_reason=Failed to retrieve valid Alpine digest" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          
-          # Get stored digest from GitHub Variables
-          STORED_DIGEST="${{ vars.ALPINE_DIGEST }}"
-          echo "Stored Alpine digest: $STORED_DIGEST"
-          
-          # Handle empty or missing stored digest
-          if [ -z "$STORED_DIGEST" ] || [ "$STORED_DIGEST" = " " ] || [ "$STORED_DIGEST" = "sha256:initial" ]; then
-            echo "🆕 No previous digest stored. This is the first run - build will proceed."
-            echo "should_build=true" >> $GITHUB_OUTPUT
-            echo "digest=$NEW_DIGEST" >> $GITHUB_OUTPUT
-            echo "update_reason=First run - initializing Alpine digest tracking" >> $GITHUB_OUTPUT
-          elif [ "$NEW_DIGEST" != "$STORED_DIGEST" ]; then
-            echo "✅ Alpine Linux has been updated! Build will proceed."
-            echo "should_build=true" >> $GITHUB_OUTPUT
-            echo "digest=$NEW_DIGEST" >> $GITHUB_OUTPUT
-            echo "update_reason=Alpine Linux base image updated (${STORED_DIGEST:0:12}... → ${NEW_DIGEST:0:12}...)" >> $GITHUB_OUTPUT
-          else
-            echo "ℹ️ No Alpine update detected. Skipping build."
-            echo "should_build=false" >> $GITHUB_OUTPUT
-            echo "update_reason=No Alpine updates detected" >> $GITHUB_OUTPUT
-          fi
-      
-      - name: Set default for non-scheduled runs
-        id: default
-        if: github.event_name != 'schedule' && (github.event_name != 'workflow_dispatch' || inputs.force_build == 'true')
-        run: |
-          echo "should_build=true" >> $GITHUB_OUTPUT
-          echo "update_reason=Non-scheduled trigger" >> $GITHUB_OUTPUT
-          echo "digest=" >> $GITHUB_OUTPUT
+  # Non-PR builds and publishes
+  build-and-publish:
+    if: github.event_name != 'pull_request'
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/build-extended.yml@737f84c74dc522925a58bfb8e909550e52c94500
+    with:
+      image_name: speedtest-ookla
+      arch_list: ${{ vars.IMAGE_ARCHS }}                     # e.g. linux/amd64,linux/i386,linux/arm/v7,linux/arm64
+      enable_push: ${{ vars.ENABLE_PUSH == 'true' }}         # uses your repo variable
+      env_file_path: env/.env                                # optional; falls back to Git SHA if missing
+      version_var_name: SPEEDTEST_VERSION                    # optional; used if present in env file
+      enable_ghcr: true                                      # publish to GHCR in addition to Docker Hub
+      enable_security_scan: true                             # run Trivy and upload SARIF
+      enable_base_update_detection: true                     # only builds on schedule when Alpine base changes
+      enable_sonar_scan: false                               # set true and configure secrets to enable sonar
+      sonar_project_key: ""
+      sonar_organization: ""
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}                # optional, only needed if you enable sonar
 
-  print-tag:
-    runs-on: ubuntu-latest
-    # Only run if it's not a scheduled run, OR if it's scheduled and base image updated
-    if: github.event_name != 'schedule' || needs.check-base-image.outputs.should_build == 'true'
-    needs: [check-base-image]
-    steps:
-      - name: Print the purpose of run
-        run: |
-          if [ "${{ github.event_name }}" == "schedule" ]; then
-            echo "Purpose of Run: ${{ needs.check-base-image.outputs.update_reason }}"
-          else
-            echo "Purpose of Run: ${{ inputs.tags || 'Code changes or manual trigger' }}"
-          fi
+  # PR validation for regular users (with SonarQube)
+  pr-validate:
+    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/build-extended.yml@737f84c74dc522925a58bfb8e909550e52c94500
+    with:
+      image_name: speedtest-ookla
+      arch_list: linux/amd64,linux/arm64                      # faster validation set; adjust if you need full matrix
+      enable_push: false                                      # don’t push on PRs
+      env_file_path: env/.env
+      version_var_name: SPEEDTEST_VERSION
+      enable_ghcr: false                                      # skip GHCR on PR
+      enable_security_scan: false                             # skip Trivy on PR
+      enable_base_update_detection: false                     # not used on PR
+      enable_sonar_scan: true
+      sonar_project_key: lferrarotti74_SpeedTest-Ookla
+      sonar_organization: lferrarotti74
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-  # Dummy SonarQube Analysis for Dependabot
-  sonarqube-dummy:
-    name: SonarQube Analysis
-    runs-on: ubuntu-latest
-    if: github.actor == 'dependabot[bot]'
-    needs: [check-base-image]
-    steps:
-      - name: Skip SonarQube scan
-        run: echo "Skipping SonarQube scan for Dependabot PRs"
-      
-  # SonarQube Analysis Job
-  sonarqube:
-    name: SonarQube Analysis
-    runs-on: ubuntu-latest
-    if: >
-      github.actor != 'dependabot[bot]' && (
-        (github.event_name == 'push' || github.event_name == 'pull_request') ||
-        (github.event_name == 'schedule' && needs.check-base-image.outputs.should_build == 'true')
-      )
-    needs: [check-base-image]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.2.0
-        with:
-          fetch-depth: 0  # Required for proper blame/coverage tracking
-
-      - name: Cache SonarQube packages
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: ~/.sonar/cache
-          key: ${{ runner.os }}-sonar
-          restore-keys: ${{ runner.os }}-sonar
-
-      - name: Prepare SonarQube arguments
-        id: sonar-args
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          HEAD_REF: ${{ github.head_ref }}
-          BASE_REF: ${{ github.base_ref }}
-          REF_NAME: ${{ github.ref_name }}
-        run: |
-          if [ "$EVENT_NAME" = "pull_request" ]; then
-            echo "args=-Dsonar.projectKey=lferrarotti74_SpeedTest-Ookla \
-                  -Dsonar.organization=lferrarotti74 \
-                  -Dsonar.pullrequest.key=$PR_NUMBER \
-                  -Dsonar.pullrequest.branch=$HEAD_REF \
-                  -Dsonar.pullrequest.base=$BASE_REF" >> $GITHUB_OUTPUT
-          else
-            echo "args=-Dsonar.projectKey=lferrarotti74_SpeedTest-Ookla \
-                  -Dsonar.organization=lferrarotti74 \
-                  -Dsonar.branch.name=$REF_NAME" >> $GITHUB_OUTPUT
-          fi
-
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: https://sonarcloud.io
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          args: ${{ steps.sonar-args.outputs.args }}
-        
-  build:
-    runs-on: ubuntu-latest
-    # Only run if it's not a scheduled run, OR if it's scheduled and base image updated
-    if: github.event_name != 'schedule' || needs.check-base-image.outputs.should_build == 'true'
-    needs: [check-base-image]
-    strategy:
-      matrix:
-        platform: [
-          {name: "linux/amd64", tag: "amd64"},
-          {name: "linux/i386", tag: "i386"},
-          {name: "linux/arm/v7", tag: "armv7"},
-          {name: "linux/arm64", tag: "arm64"}
-        ]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.2.0
-        
-      - name: Set Environment
-        uses: c-py/action-dotenv-to-setenv@925b5d99a3f1e4bd7b4e9928be4e2491e29891d9 # v5
-        id: source-env
-        with:
-          env-file: env/.env
-          
-      - name: Echo Speedtest Version from env file
-        run: | 
-          echo ${{ steps.source-env.outputs.speedtest_version }} >> "$GITHUB_ENV"
-
-      - name: Log build trigger reason
-        run: |
-          if [ "${{ github.event_name }}" == "schedule" ]; then
-            echo "🔄 Build triggered by: ${{ needs.check-base-image.outputs.update_reason }}"
-          else
-            echo "🚀 Build triggered by: ${{ github.event_name }}"
-          fi
-        
-      - name: Prepare
-        run: |
-          platform=${{ matrix.platform.name }}
-          echo "PLATFORM_PAIR=${platform//\//-}" >> "$GITHUB_ENV"
-        
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5
-        with:
-          images: |
-            ${{ env.REGISTRY_IMAGE }}
-            ${{ env.GHCR_IMAGE }}
-          # Add special tag for base image updates
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=${{ env.SPEEDTEST_VERSION }},enable={{is_default_branch}}
-            type=raw,value=alpine-update-{{date 'YYYY-MM-DD'}},enable=${{ github.event_name == 'schedule' }}
-   
-      - name: Log in to Docker Hub
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          
-      - name: Set up QEMU for Multi-Arch Builds
-        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3
-        with:
-          platforms: ${{ matrix.platform.name }}
-
-      - name: Verify QEMU Installation
-        run: |
-          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-          echo "QEMU has been set up successfully."
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
-
-      # Add caching for Docker layers
-      - name: Cache Docker layers
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ matrix.platform.name }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-${{ matrix.platform.name }}-
-            ${{ runner.os }}-buildx-
-        
-      - name: Build and Push Image by Digest
-        id: build
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        with:
-          context: .
-          platforms: ${{ matrix.platform.name }}
-          build-args: VERSION=${{ env.SPEEDTEST_VERSION }}
-          labels: |
-            ${{ steps.meta.outputs.labels }}
-            org.opencontainers.image.description=Speedtest CLI built on Alpine Linux
-            ${{ github.event_name == 'schedule' && format('alpine.base.updated={0}', needs.check-base-image.outputs.alpine_digest) || '' }}
-          provenance: mode=max
-          sbom: true
-          outputs: type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
-
-      # This is a workaround to prevent cache size from growing indefinitely
-      - name: Move cache
-        run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
-          
-      - name: Debug DOCKER_METADATA_OUTPUT_JSON
-        run: |
-          echo "$DOCKER_METADATA_OUTPUT_JSON"
-          
-      - name: Export Digests
-        if: github.event_name != 'pull_request'
-        run: |
-          mkdir -p /tmp/digests
-          digest="${{ steps.build.outputs.digest }}"
-          touch "/tmp/digests/${digest#sha256:}"
-          
-      - name: Upload Digest
-        if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: digests-${{ env.PLATFORM_PAIR }}
-          path: /tmp/digests/*
-          if-no-files-found: error
-          retention-days: 1
-
-  merge:
-    runs-on: ubuntu-latest
-    needs: 
-      - build
-      - check-base-image
-    if: github.event_name != 'pull_request' && (github.event_name != 'schedule' || needs.check-base-image.outputs.should_build == 'true')
-    steps:
-      - name: Checkout
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.2.0
-      
-      - name: Set Environment
-        uses: c-py/action-dotenv-to-setenv@925b5d99a3f1e4bd7b4e9928be4e2491e29891d9 # v5
-        id: source-env
-        with:
-          env-file: env/.env
-          
-      - name: Echo Speedtest Version from env file
-        run: | 
-          echo ${{ steps.source-env.outputs.speedtest_version }} >> "$GITHUB_ENV"
-      
-      - name: Download digests
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
-        with:
-          path: /tmp/digests
-          pattern: digests-*
-          merge-multiple: true
-          
-      - name: List digests downloaded
-        run: |
-          echo "Digest files retrieved:"
-          ls -l /tmp/digests
-        
-      - name: Log in to Docker Hub
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
-
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5
-        with:
-          images: |
-            ${{ env.REGISTRY_IMAGE }}
-            ${{ env.GHCR_IMAGE }}
-
-      - name: Create manifest list and push to Docker Hub
-        working-directory: /tmp/digests
-        run: |
-          docker buildx imagetools create --tag ${{ env.REGISTRY_IMAGE }}:latest \
-            $(printf '${{ env.GHCR_IMAGE }}@sha256:%s ' *)
-          docker buildx imagetools create --tag ${{ env.REGISTRY_IMAGE }}:${{ env.SPEEDTEST_VERSION }} \
-            $(printf '${{ env.GHCR_IMAGE }}@sha256:%s ' *)
-          
-          # Add special tag for base image updates
-          if [ "${{ github.event_name }}" == "schedule" ]; then
-            docker buildx imagetools create --tag ${{ env.REGISTRY_IMAGE }}:alpine-update-$(date +%Y-%m-%d) \
-              $(printf '${{ env.GHCR_IMAGE }}@sha256:%s ' *)
-          fi
-
-      - name: Create manifest list and push to GHCR
-        working-directory: /tmp/digests
-        run: |
-          docker buildx imagetools create --tag ${{ env.GHCR_IMAGE }}:latest \
-            $(printf '${{ env.GHCR_IMAGE }}@sha256:%s ' *)
-          docker buildx imagetools create --tag ${{ env.GHCR_IMAGE }}:${{ env.SPEEDTEST_VERSION }} \
-            $(printf '${{ env.GHCR_IMAGE }}@sha256:%s ' *)
-          
-          # Add special tag for base image updates
-          if [ "${{ github.event_name }}" == "schedule" ]; then
-            docker buildx imagetools create --tag ${{ env.GHCR_IMAGE }}:alpine-update-$(date +%Y-%m-%d) \
-              $(printf '${{ env.GHCR_IMAGE }}@sha256:%s ' *)
-          fi
-            
-      - name: Inspect image
-        run: |
-          echo "Docker Hub images:"
-          docker buildx imagetools inspect ${{ env.REGISTRY_IMAGE }}:latest
-          docker buildx imagetools inspect ${{ env.REGISTRY_IMAGE }}:${{ env.SPEEDTEST_VERSION }}
-          echo "GHCR images:"
-          docker buildx imagetools inspect ${{ env.GHCR_IMAGE }}:latest
-          docker buildx imagetools inspect ${{ env.GHCR_IMAGE }}:${{ env.SPEEDTEST_VERSION }}
-
-  # Security Scan Job
-  security-scan:
-    name: Security Scan (Trivy + Grype + OSV)
-    runs-on: ubuntu-latest
-    needs: [merge, build]
-    if: github.event_name != 'pull_request' && (github.event_name != 'schedule' || needs.check-base-image.outputs.should_build == 'true')
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.2.0
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Pull final image
-        run: docker pull ${{ env.REGISTRY_IMAGE }}:latest
-
-      ######################
-      # Manual Trivy Setup
-      ######################
-      - name: Setup Trivy
-        uses: aquasecurity/setup-trivy@e6c2c5e321ed9123bda567646e2f96565e34abe1 # v0.2.0
-        with:
-          version: 'v0.67.2'  # Use latest version as suggested in logs
-
-      - name: Cache Trivy DB
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: ~/.cache/trivy
-          key: trivy-db-${{ runner.os }}-${{ hashFiles('**/Dockerfile') }}-${{ github.run_id }}
-          restore-keys: |
-            trivy-db-${{ runner.os }}-${{ hashFiles('**/Dockerfile') }}-
-            trivy-db-${{ runner.os }}-
-
-      ######################
-      # Enhanced Trivy Scan
-      ######################
-      - name: Run Trivy vulnerability scanner
-        run: |
-          trivy image \
-            --format table \
-            --output trivy-report.txt \
-            --severity CRITICAL,HIGH,MEDIUM \
-            --exit-code 0 \
-            --no-progress \
-            --timeout 10m \
-            ${{ env.REGISTRY_IMAGE }}:latest
-
-      - name: Run Trivy SARIF scan for GitHub Security
-        run: |
-          trivy image \
-            --format sarif \
-            --output trivy-results.sarif \
-            --severity CRITICAL,HIGH,MEDIUM \
-            --exit-code 0 \
-            --no-progress \
-            --timeout 10m \
-            ${{ env.REGISTRY_IMAGE }}:latest
-
-      - name: Run Trivy secret scan
-        run: |
-          trivy image \
-            --scanners secret \
-            --format table \
-            --output trivy-secrets.txt \
-            --exit-code 0 \
-            --no-progress \
-            --timeout 5m \
-            ${{ env.REGISTRY_IMAGE }}:latest
-
-      ######################
-      # Grype Scan
-      ######################
-      - name: Grype Scan
-        id: grype-scan
-        uses: anchore/scan-action@f6601287cdb1efc985d6b765bbf99cb4c0ac29d8 # v5
-        with:
-          image: ${{ env.REGISTRY_IMAGE }}:latest
-          output-format: 'json'
-          fail-build: false
-
-      - name: Save Grype Report
-        run: |
-          # The action outputs the JSON report path, let's copy it to our expected filename
-          if [ -f "${{ steps.grype-scan.outputs.json }}" ]; then
-            cp "${{ steps.grype-scan.outputs.json }}" grype-report.json
-            echo "✅ Grype report saved as grype-report.json"
-          else
-            echo "⚠️ Grype JSON report not found, creating empty report"
-            echo '{"matches": []}' > grype-report.json
-          fi
-
-      ######################
-      # OSV-Scanner for app dependencies
-      ######################
-      - name: Install Syft (SBOM generator)
-        run: |
-          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh
-          # Add syft to PATH for subsequent steps
-          echo "$PWD/bin" >> $GITHUB_PATH
-
-      - name: Generate SBOM
-        run: syft ${{ env.REGISTRY_IMAGE }}:latest -o json > sbom.json
-
-      - name: Run OSV Scanner on Container Image
-        run: |
-          # Download and install OSV Scanner
-          curl -L -o osv-scanner https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64
-          chmod +x osv-scanner
-          
-          # Run OSV Scanner on the container image
-          echo "🔍 Scanning container image: ${{ env.REGISTRY_IMAGE }}:latest"
-          ./osv-scanner scan image ${{ env.REGISTRY_IMAGE }}:latest --format=json --output=osv-report.json || true
-          
-          # Verify output file exists
-          if [ -f osv-report.json ]; then
-            echo "✅ OSV Scanner completed successfully"
-            echo "📄 Container image scan report saved as osv-report.json"
-          else
-            echo "⚠️ OSV Scanner report not found, creating empty report"
-            echo '{"results": []}' > osv-report.json
-          fi
-
-      ######################
-      # Upload SARIF to GitHub Security
-      ######################
-      - name: Upload Trivy SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@f443b600d91635bebf5b0d9ebc620189c0d6fba5 # v4.30.8
-        if: always()
-        with:
-          sarif_file: trivy-results.sarif
-          category: trivy-container-scan
-
-      ######################
-      # Upload all scan reports
-      ######################
-      - name: Upload Security Scan Reports
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: security-reports
-          path: |
-            trivy-report.txt
-            trivy-results.sarif
-            trivy-secrets.txt
-            grype-report.json
-            sbom.json
-            osv-report.json
-          retention-days: 30
-
-  # NEW: Update stored Alpine digest after successful build
-  # Updated update-digest job
-  update-digest:
-    runs-on: ubuntu-latest
-    needs: [check-base-image, merge]
-    permissions:
-      contents: write  # Changed from 'read' to 'write'
-      packages: write  # Keep existing
-      actions: write   # Add this for variable updates
-    if: >
-      (github.event_name == 'schedule' || 
-       (github.event_name == 'workflow_dispatch' && inputs.update_digest == 'true')) &&
-      needs.merge.result == 'success'
-    steps:
-      - name: Update stored base image digests
-        run: |
-          update_digest() {
-            local var_name="$1"
-            local current_value="$2"
-            local new_value="$3"
-  
-            if [ -n "$new_value" ] && [ "$new_value" != "$current_value" ]; then
-              echo "📝 Updating $var_name..."
-              echo "Previous: $current_value"
-              echo "New: $new_value"
-              
-              # Use GitHub CLI API directly instead of gh variable set
-              gh api \
-                --method PATCH \
-                -H "Accept: application/vnd.github+json" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                "/repos/${{ github.repository }}/actions/variables/$var_name" \
-                -f "name=$var_name" \
-                -f "value=$new_value"
-              
-              echo "✅ $var_name updated successfully!"
-            else
-              echo "ℹ️ $var_name unchanged."
-            fi
-          }
-  
-          update_digest "ALPINE_DIGEST" "${{ vars.ALPINE_DIGEST }}" "${{ needs.check-base-image.outputs.alpine_digest }}"
-          update_digest "UBUNTU_DIGEST" "${{ vars.UBUNTU_DIGEST }}" "${{ needs.check-base-image.outputs.ubuntu_digest }}"
-        env:
-          GITHUB_TOKEN: ${{ secrets.REPO_TOKEN }}
-
-  # NEW: Build Summary
-  build-summary:
-    runs-on: ubuntu-latest
-    needs: [check-base-image, build, merge, update-digest, security-scan]
-    if: always()
-    steps:
-      - name: Download Security Reports
-        if: needs.security-scan.result == 'success'
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
-        with:
-          name: security-reports
-          path: ./security-reports
-
-      - name: Parse Security Scan Results
-        if: needs.security-scan.result == 'success'
-        id: parse-security
-        run: |
-          # Initialize counters
-          CRITICAL_CVES=0
-          HIGH_CVES=0
-          MEDIUM_CVES=0
-          LOW_CVES=0
-          TOTAL_CVES=0
-          SECRET_FINDINGS=0
-          
-          # Parse enhanced Trivy report if it exists
-          if [ -f "./security-reports/trivy-report.txt" ]; then
-            echo "📊 Parsing enhanced Trivy scan results..."
-            
-            # More accurate parsing - count actual vulnerability entries, not just lines with keywords
-            # Skip table headers and formatting lines by looking for CVE patterns
-            CRITICAL_CVES=$(grep -E "CRITICAL.*CVE-[0-9]{4}-[0-9]+" ./security-reports/trivy-report.txt 2>/dev/null | wc -l || echo "0")
-            HIGH_CVES=$(grep -E "HIGH.*CVE-[0-9]{4}-[0-9]+" ./security-reports/trivy-report.txt 2>/dev/null | wc -l || echo "0")
-            MEDIUM_CVES=$(grep -E "MEDIUM.*CVE-[0-9]{4}-[0-9]+" ./security-reports/trivy-report.txt 2>/dev/null | wc -l || echo "0")
-            LOW_CVES=$(grep -E "LOW.*CVE-[0-9]{4}-[0-9]+" ./security-reports/trivy-report.txt 2>/dev/null | wc -l || echo "0")
-            
-            # Ensure variables are numeric and clean
-            CRITICAL_CVES=$(echo "$CRITICAL_CVES" | tr -d '\n\r' | grep -E '^[0-9]+$' || echo "0")
-            HIGH_CVES=$(echo "$HIGH_CVES" | tr -d '\n\r' | grep -E '^[0-9]+$' || echo "0")
-            MEDIUM_CVES=$(echo "$MEDIUM_CVES" | tr -d '\n\r' | grep -E '^[0-9]+$' || echo "0")
-            LOW_CVES=$(echo "$LOW_CVES" | tr -d '\n\r' | grep -E '^[0-9]+$' || echo "0")
-            
-            TOTAL_CVES=$((CRITICAL_CVES + HIGH_CVES + MEDIUM_CVES + LOW_CVES))
-            
-            echo "Trivy Vulnerabilities: Critical=$CRITICAL_CVES, High=$HIGH_CVES, Medium=$MEDIUM_CVES, Low=$LOW_CVES"
-          fi
-          
-          # Parse Trivy secret scanning results if it exists
-          if [ -f "./security-reports/trivy-secrets.txt" ]; then
-            echo "📊 Parsing Trivy secret scan results..."
-            # Count actual secret findings (lines that contain secret types)
-            SECRET_FINDINGS=$(grep -E "(SECRET|PRIVATE_KEY|PASSWORD|TOKEN|API_KEY)" ./security-reports/trivy-secrets.txt 2>/dev/null | wc -l || echo "0")
-            SECRET_FINDINGS=$(echo "$SECRET_FINDINGS" | tr -d '\n\r' | grep -E '^[0-9]+$' || echo "0")
-            echo "Trivy Secret Findings: $SECRET_FINDINGS"
-          fi
-          
-          # Parse SARIF results for more accurate counting if available
-          if [ -f "./security-reports/trivy-results.sarif" ] && command -v jq &> /dev/null; then
-            echo "📊 Parsing SARIF results for accurate vulnerability counts..."
-            SARIF_CRITICAL=$(jq '[.runs[].results[] | select(.level == "error" and (.ruleId | contains("CVE")))] | length' ./security-reports/trivy-results.sarif 2>/dev/null || echo "0")
-            SARIF_HIGH=$(jq '[.runs[].results[] | select(.level == "warning" and (.ruleId | contains("CVE")))] | length' ./security-reports/trivy-results.sarif 2>/dev/null || echo "0")
-            
-            # Use SARIF counts if they seem more accurate (non-zero)
-            if [ "$SARIF_CRITICAL" -gt 0 ] || [ "$SARIF_HIGH" -gt 0 ]; then
-              echo "Using SARIF counts for more accuracy"
-              CRITICAL_CVES=$SARIF_CRITICAL
-              HIGH_CVES=$SARIF_HIGH
-              TOTAL_CVES=$((CRITICAL_CVES + HIGH_CVES + MEDIUM_CVES + LOW_CVES))
-            fi
-          fi
-          
-          # Parse Grype report if it exists (JSON format)
-          if [ -f "./security-reports/grype-report.json" ]; then
-            echo "📊 Parsing Grype scan results..."
-            # Extract vulnerability counts from JSON
-            if command -v jq &> /dev/null; then
-              GRYPE_CRITICAL=$(jq '[.matches[] | select(.vulnerability.severity == "Critical")] | length' ./security-reports/grype-report.json 2>/dev/null || echo "0")
-              GRYPE_HIGH=$(jq '[.matches[] | select(.vulnerability.severity == "High")] | length' ./security-reports/grype-report.json 2>/dev/null || echo "0")
-              GRYPE_MEDIUM=$(jq '[.matches[] | select(.vulnerability.severity == "Medium")] | length' ./security-reports/grype-report.json 2>/dev/null || echo "0")
-              GRYPE_LOW=$(jq '[.matches[] | select(.vulnerability.severity == "Low")] | length' ./security-reports/grype-report.json 2>/dev/null || echo "0")
-              
-              # Ensure Grype variables are numeric and clean
-              GRYPE_CRITICAL=$(echo "$GRYPE_CRITICAL" | tr -d '\n\r' | grep -E '^[0-9]+$' || echo "0")
-              GRYPE_HIGH=$(echo "$GRYPE_HIGH" | tr -d '\n\r' | grep -E '^[0-9]+$' || echo "0")
-              GRYPE_MEDIUM=$(echo "$GRYPE_MEDIUM" | tr -d '\n\r' | grep -E '^[0-9]+$' || echo "0")
-              GRYPE_LOW=$(echo "$GRYPE_LOW" | tr -d '\n\r' | grep -E '^[0-9]+$' || echo "0")
-              
-              # Add Grype results to totals
-              CRITICAL_CVES=$((CRITICAL_CVES + GRYPE_CRITICAL))
-              HIGH_CVES=$((HIGH_CVES + GRYPE_HIGH))
-              MEDIUM_CVES=$((MEDIUM_CVES + GRYPE_MEDIUM))
-              LOW_CVES=$((LOW_CVES + GRYPE_LOW))
-              TOTAL_CVES=$((CRITICAL_CVES + HIGH_CVES + MEDIUM_CVES + LOW_CVES))
-            fi
-          fi
-          
-          # Parse OSV report if it exists
-          if [ -f "./security-reports/osv-report.json" ]; then
-            echo "📊 Parsing OSV scan results..."
-            if command -v jq &> /dev/null; then
-              OSV_VULNS=$(jq '.results[].packages[].vulnerabilities | length' ./security-reports/osv-report.json 2>/dev/null | awk '{sum += $1} END {print sum+0}' || echo "0")
-              OSV_VULNS=$(echo "$OSV_VULNS" | tr -d '\n\r' | grep -E '^[0-9]+$' || echo "0")
-              echo "OSV Scanner found $OSV_VULNS vulnerabilities"
-            fi
-          fi
-          
-          # Ensure all variables are properly set before output
-          CRITICAL_CVES=${CRITICAL_CVES:-0}
-          HIGH_CVES=${HIGH_CVES:-0}
-          MEDIUM_CVES=${MEDIUM_CVES:-0}
-          LOW_CVES=${LOW_CVES:-0}
-          TOTAL_CVES=${TOTAL_CVES:-0}
-          SECRET_FINDINGS=${SECRET_FINDINGS:-0}
-          
-          # Set outputs for use in summary
-          echo "critical_cves=${CRITICAL_CVES}" >> $GITHUB_OUTPUT
-          echo "high_cves=${HIGH_CVES}" >> $GITHUB_OUTPUT
-          echo "medium_cves=${MEDIUM_CVES}" >> $GITHUB_OUTPUT
-          echo "low_cves=${LOW_CVES}" >> $GITHUB_OUTPUT
-          echo "total_cves=${TOTAL_CVES}" >> $GITHUB_OUTPUT
-          echo "secret_findings=${SECRET_FINDINGS}" >> $GITHUB_OUTPUT
-          
-          # Determine security status with proper numeric comparison
-          if [ "${CRITICAL_CVES}" -gt 0 ]; then
-            echo "security_status=🔴 CRITICAL" >> $GITHUB_OUTPUT
-          elif [ "${HIGH_CVES}" -gt 0 ]; then
-            echo "security_status=🟠 HIGH" >> $GITHUB_OUTPUT
-          elif [ "${SECRET_FINDINGS}" -gt 0 ]; then
-            echo "security_status=🟡 SECRETS FOUND" >> $GITHUB_OUTPUT
-          elif [ "${MEDIUM_CVES}" -gt 0 ]; then
-            echo "security_status=🟡 MEDIUM" >> $GITHUB_OUTPUT
-          elif [ "${TOTAL_CVES}" -gt 0 ]; then
-            echo "security_status=🟢 LOW" >> $GITHUB_OUTPUT
-          else
-            echo "security_status=✅ CLEAN" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Generate Build Summary
-        run: |
-          echo "## 🚀 Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
-          
-          if [ "${{ github.event_name }}" == "schedule" ]; then
-            if [ "${{ needs.check-base-image.outputs.should_build }}" == "true" ]; then
-              echo "**Status:** ✅ Alpine Linux updated - Build completed" >> $GITHUB_STEP_SUMMARY
-              echo "**Reason:** ${{ needs.check-base-image.outputs.update_reason }}" >> $GITHUB_STEP_SUMMARY
-              echo "**New Alpine Digest:** \`${{ needs.check-base-image.outputs.alpine_digest }}\`" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "**Status:** ⏭️ No updates detected - Build skipped" >> $GITHUB_STEP_SUMMARY
-              echo "**Reason:** Alpine Linux digest unchanged" >> $GITHUB_STEP_SUMMARY
-            fi
-          else
-            echo "**Status:** ✅ Build completed" >> $GITHUB_STEP_SUMMARY
-            echo "**Reason:** Code changes or manual trigger" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Images Built:**" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.REGISTRY_IMAGE }}:latest\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.GHCR_IMAGE }}:latest\`" >> $GITHUB_STEP_SUMMARY
-          
-          if [ "${{ needs.build.result }}" == "success" ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "🎯 **Multi-arch build successful** for platforms:" >> $GITHUB_STEP_SUMMARY
-            echo "- linux/amd64, linux/i386, linux/arm/v7, linux/arm64" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          # Add security scan results if available
-          if [ "${{ needs.security-scan.result }}" == "success" ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "## 🔒 Security Scan Results" >> $GITHUB_STEP_SUMMARY
-            echo "**Overall Status:** ${{ steps.parse-security.outputs.security_status }}" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### 🛡️ Vulnerability Summary" >> $GITHUB_STEP_SUMMARY
-            echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
-            echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-            echo "| 🔴 Critical | ${{ steps.parse-security.outputs.critical_cves }} |" >> $GITHUB_STEP_SUMMARY
-            echo "| 🟠 High | ${{ steps.parse-security.outputs.high_cves }} |" >> $GITHUB_STEP_SUMMARY
-            echo "| 🟡 Medium | ${{ steps.parse-security.outputs.medium_cves }} |" >> $GITHUB_STEP_SUMMARY
-            echo "| 🔵 Low | ${{ steps.parse-security.outputs.low_cves }} |" >> $GITHUB_STEP_SUMMARY
-            echo "| **Total** | **${{ steps.parse-security.outputs.total_cves }}** |" >> $GITHUB_STEP_SUMMARY
-            
-            # Add secret scanning results if any were found
-            if [ "${{ steps.parse-security.outputs.secret_findings }}" -gt 0 ]; then
-              echo "" >> $GITHUB_STEP_SUMMARY
-              echo "### 🔐 Secret Scanning Results" >> $GITHUB_STEP_SUMMARY
-              echo "| Type | Count |" >> $GITHUB_STEP_SUMMARY
-              echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
-              echo "| 🚨 Secrets Found | ${{ steps.parse-security.outputs.secret_findings }} |" >> $GITHUB_STEP_SUMMARY
-              echo "" >> $GITHUB_STEP_SUMMARY
-              echo "⚠️ **Action Required:** Review secret findings in the security reports." >> $GITHUB_STEP_SUMMARY
-            fi
-            
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### 📊 Scan Details" >> $GITHUB_STEP_SUMMARY
-            echo "📋 **Scan Tools Used:** Enhanced Trivy (v0.67.2), Grype, OSV-Scanner" >> $GITHUB_STEP_SUMMARY
-            echo "📁 **Reports:** Available in workflow artifacts (30-day retention)" >> $GITHUB_STEP_SUMMARY
-            echo "🔍 **Formats:** Table, SARIF, JSON outputs generated" >> $GITHUB_STEP_SUMMARY
-            echo "🛡️ **GitHub Security:** SARIF results uploaded to Security tab" >> $GITHUB_STEP_SUMMARY
-            echo "⚡ **Performance:** Enhanced with manual setup and caching" >> $GITHUB_STEP_SUMMARY
-          elif [ "${{ needs.security-scan.result }}" == "failure" ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "## ⚠️ Security Scan Failed" >> $GITHUB_STEP_SUMMARY
-            echo "Security scanning encountered an error. Please check the security-scan job logs." >> $GITHUB_STEP_SUMMARY
-          elif [ "${{ needs.security-scan.result }}" == "skipped" ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "## ⏭️ Security Scan Skipped" >> $GITHUB_STEP_SUMMARY
-            echo "Security scan was skipped (likely due to pull request or no build needed)." >> $GITHUB_STEP_SUMMARY
-          fi
+  # Dummy PR validation for Dependabot (no SonarQube)
+  pr-validate-dependabot:
+    if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/build-extended.yml@737f84c74dc522925a58bfb8e909550e52c94500
+    with:
+      image_name: speedtest-ookla
+      arch_list: linux/amd64
+      enable_push: false
+      env_file_path: env/.env
+      version_var_name: SPEEDTEST_VERSION
+      enable_ghcr: false
+      enable_security_scan: false
+      enable_base_update_detection: false
+      enable_sonar_scan: false
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
