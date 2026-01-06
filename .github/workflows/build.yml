@@ -108,6 +108,7 @@ permissions:
   packages: write           # GHCR publishing via github.token
   actions: write            # allows patching repo variables via API
   security-events: write    # enables SARIF upload in security scan
+  pull-requests: write      # ADD THIS - needed for SonarQube PR decoration
 
 jobs:
   # Non-PR builds and publishes
