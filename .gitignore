@@ -235,4 +235,3 @@ backup-workflows/
 _workflow_backups
 repository-security-checklist.md
 update-template-sha.sh
-.continue/config.yaml
