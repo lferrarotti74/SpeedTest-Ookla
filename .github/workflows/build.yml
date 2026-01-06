@@ -127,10 +127,11 @@ jobs:
       enable_sonar_scan: false                               # set true and configure secrets to enable sonar
       sonar_project_key: ""
       sonar_organization: ""
-    secrets:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}                # optional, only needed if you enable sonar
+    #secrets:
+    #  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+    #  DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    #  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}                # optional, only needed if you enable sonar_organization
+    secrets: inherit
 
   # PR validation for regular users (with SonarQube)
   pr-validate:
@@ -148,10 +149,11 @@ jobs:
       enable_sonar_scan: true
       sonar_project_key: lferrarotti74_SpeedTest-Ookla
       sonar_organization: lferrarotti74
-    secrets:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    #secrets:
+    #  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+    #  DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    #  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    secrets: inherit
 
   # Dummy PR validation for Dependabot (no SonarQube)
   pr-validate-dependabot:
@@ -167,6 +169,7 @@ jobs:
       enable_security_scan: false
       enable_base_update_detection: false
       enable_sonar_scan: false
-    secrets:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    #secrets:
+    #  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+    #  DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    secrets: inherit
