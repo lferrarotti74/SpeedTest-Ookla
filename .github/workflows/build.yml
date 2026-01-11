@@ -124,7 +124,7 @@ jobs:
       enable_ghcr: true                                      # publish to GHCR in addition to Docker Hub
       enable_security_scan: true                             # run Trivy and upload SARIF
       enable_base_update_detection: true                     # only builds on schedule when Alpine base changes
-      enable_sonar_scan: false                               # set true and configure secrets to enable sonar
+      enable_sonar_scan: true                               # set true and configure secrets to enable sonar
       sonar_project_key: ""
       sonar_organization: ""
     #secrets:
