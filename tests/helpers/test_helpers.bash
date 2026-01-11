@@ -106,7 +106,7 @@ wait_for_container() {
     local timeout="${1:-10}"
     local count=0
     
-    while [ $count -lt $timeout ]; do
+    while [[ $count -lt $timeout ]]; do
         if check_speedtest_binary; then
             return 0
         fi
