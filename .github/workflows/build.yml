@@ -125,8 +125,8 @@ jobs:
       enable_security_scan: true                             # run Trivy and upload SARIF
       enable_base_update_detection: true                     # only builds on schedule when Alpine base changes
       enable_sonar_scan: true                               # set true and configure secrets to enable sonar
-      sonar_project_key: ""
-      sonar_organization: ""
+      sonar_project_key: "lferrarotti74_SpeedTest-Ookla"
+      sonar_organization: "lferrarotti74"
     #secrets:
     #  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
     #  DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
