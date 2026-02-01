@@ -24,7 +24,7 @@ on:
 
 jobs:
   call-reusable:
-    uses: lferrarotti74/github-workflows-templates/.github/workflows/create-release.yml@c8b214f2bcfa77d6bc45e48abdbd2eeeba43e62c
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/create-release.yml@2e3c31281cb4cc0e4a5df1c133f1c165e2798ed9
     with:
       tag: ${{ inputs.tag }}
       dry_run: ${{ inputs.dry_run }}
