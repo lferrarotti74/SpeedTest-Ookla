@@ -117,7 +117,7 @@ jobs:
     uses: lferrarotti74/github-workflows-templates/.github/workflows/build-extended.yml@04f57bfd8f50e726c1b74417aec603849eed9f7b
     permissions:
       actions: write
-      contents: write
+      contents: read
     with:
       image_name: speedtest-ookla
       arch_list: ${{ vars.IMAGE_ARCHS }}                     # e.g. linux/amd64,linux/i386,linux/arm/v7,linux/arm64
