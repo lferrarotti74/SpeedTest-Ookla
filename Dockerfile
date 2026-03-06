@@ -17,8 +17,8 @@ ENV ENV="/etc/profile"
 # Use --no-cache to avoid package cache and explicitly upgrade curl and libcurl to ensure CVE fixes are applied
 RUN apk update --no-cache && \
     apk upgrade --no-cache && \
-    apk add --no-cache tar curl && \
-    apk upgrade --no-cache curl libcurl && \
+    apk add --no-cache curl tar zlib && \
+    apk upgrade --no-cache curl libcurl zlib && \
     ARCH=$(apk info --print-arch) && \
     case "$ARCH" in \
         x86)    _arch=i386      ;; \
