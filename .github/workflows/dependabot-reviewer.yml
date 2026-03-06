@@ -10,6 +10,8 @@ permissions:
 
 jobs:
   dependabot-review:
-    uses: lferrarotti74/github-workflows-templates/.github/workflows/dependabot-reviewer.yml@f575e5558b8140825508493151a4538d0fc51aeb
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/dependabot-reviewer.yml@442c07e0fbad1bce2ad7ad1a335d240c7cd7892e
     with:
       auto_merge: true
+    secrets:
+      REPO_TOKEN: ${{ secrets.REPO_TOKEN }}  # 👈 pass your PAT here
