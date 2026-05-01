@@ -15,10 +15,12 @@ ENV ENV="/etc/profile"
 
 # Update packages to latest versions to fix CVEs and install required packages
 # Use --no-cache to avoid package cache and explicitly upgrade curl and libcurl to ensure CVE fixes are applied
-RUN apk update --no-cache && \
+RUN echo "CACHEBUST=${CACHEBUST}" > /dev/null && \
+    apk update --no-cache && \
     apk upgrade --no-cache && \
     apk add --no-cache curl tar zlib && \
-    apk upgrade --no-cache curl libcurl zlib && \
+    apk add --no-cache --upgrade nghttp2-libs && \
+    apk upgrade --no-cache curl libcurl zlib nghttp2-libs && \
     ARCH=$(apk info --print-arch) && \
     case "$ARCH" in \
         x86)    _arch=i386      ;; \
