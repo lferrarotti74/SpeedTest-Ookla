@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   scout-docker-image:
-    uses: lferrarotti74/github-workflows-templates/.github/workflows/docker-scout.yml@7f65c3b60d9a345cd060eb2f12360c9c28aa6879
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/docker-scout.yml@4ffe7f1040213a9743f4fc8fbf8aaa918ff1565f
     with:
       image_name: lferrarotti74/speedtest-ookla
       compare_tag: latest
@@ -25,6 +25,10 @@ jobs:
       enable_policy_evaluation: true
       # Informational only: do not fail the job on new fixable CVEs (revisit after first runs)
       fail_on_vulnerabilities: false
+      # Fail the job when a policy in policy_only is not met
+      policy_exit_code: true
+      # Matches policy display titles (not the stable IDs/slugs used in --policy-config). Titles are observed CLI behaviour in v1.24.0, not documented; the template fails the job if the evaluated count differs from the number of names given. Expect '4/4 policies met' in the log. Copyleft and attestation policies are excluded on purpose.
+      policy_only: 'Default non-root user,No fixable critical or high vulnerabilities,No high-profile vulnerabilities,No outdated base images'
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
