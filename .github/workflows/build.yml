@@ -114,7 +114,7 @@ jobs:
   # Non-PR builds and publishes
   build-and-publish:
     if: github.event_name != 'pull_request'
-    uses: lferrarotti74/github-workflows-templates/.github/workflows/build-extended.yml@7f65c3b60d9a345cd060eb2f12360c9c28aa6879
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/build-extended.yml@4ffe7f1040213a9743f4fc8fbf8aaa918ff1565f
     permissions:
       contents: write
       packages: write
@@ -142,7 +142,7 @@ jobs:
   # PR validation for regular users (with SonarQube)
   pr-validate:
     if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
-    uses: lferrarotti74/github-workflows-templates/.github/workflows/build-extended.yml@7f65c3b60d9a345cd060eb2f12360c9c28aa6879
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/build-extended.yml@4ffe7f1040213a9743f4fc8fbf8aaa918ff1565f
     with:
       image_name: speedtest-ookla
       arch_list: linux/amd64,linux/arm64                      # faster validation set; adjust if you need full matrix
@@ -163,7 +163,7 @@ jobs:
   # Dummy PR validation for Dependabot (no SonarQube)
   pr-validate-dependabot:
     if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
-    uses: lferrarotti74/github-workflows-templates/.github/workflows/build-extended.yml@7f65c3b60d9a345cd060eb2f12360c9c28aa6879
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/build-extended.yml@4ffe7f1040213a9743f4fc8fbf8aaa918ff1565f
     with:
       image_name: speedtest-ookla
       arch_list: linux/amd64
