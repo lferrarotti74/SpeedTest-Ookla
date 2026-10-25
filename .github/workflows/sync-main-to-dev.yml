@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   sync-main-to-dev:
-    uses: lferrarotti74/github-workflows-templates/.github/workflows/sync-main-to-dev.yml@3239e3211f6c2b7596be07770914005c24abfd7e
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/sync-main-to-dev.yml@d13a7dfdb9259e6083002c31d0c331617150b20f
     with:
       source_branch: main
       target_branch: dev
