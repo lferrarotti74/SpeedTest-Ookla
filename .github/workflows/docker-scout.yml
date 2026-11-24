@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   scout-docker-image:
-    uses: lferrarotti74/github-workflows-templates/.github/workflows/docker-scout.yml@6683da748ccf2f950d76bacb1bd76b00bc06f645
+    uses: lferrarotti74/github-workflows-templates/.github/workflows/docker-scout.yml@542b15b6bb384a94c5808fcc2996d3349290db47
     with:
       image_name: lferrarotti74/speedtest-ookla
       compare_tag: latest
